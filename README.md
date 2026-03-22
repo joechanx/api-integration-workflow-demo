@@ -2,7 +2,7 @@
 
 A minimal FastAPI project that demonstrates a practical API integration workflow.
 
-This demo shows how external order data can be received, validated, mapped into an internal format, processed through a simulated downstream system, and tracked by integration event status.
+This demo shows how external order data can be received, validated, mapped into an internal format, processed through a simulated downstream system, and tracked by integration event status. 
 
 ## What this project demonstrates
 - API request handling with FastAPI
