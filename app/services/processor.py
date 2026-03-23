@@ -1,18 +1,16 @@
-from typing import Any
-
 from fastapi import HTTPException, status
 
 from app.core.config import TARGET_SYSTEM
 from app.models import (
-    CheckoutSessionResponse,
     CreateOrderResponse,
+    ECPayCheckoutResponse,
+    ECPayWebhookResponse,
     EventRecord,
     OrderRequest,
-    StripeWebhookResponse,
 )
+from app.services.ecpay_service import build_checkout_payload, checkout_action_url
 from app.services.mapper import map_order_payload
 from app.services.store import event_store
-from app.services.stripe_gateway import StripeGatewayError, create_checkout_session
 
 
 def create_integration_event(order: OrderRequest) -> CreateOrderResponse:
@@ -25,7 +23,7 @@ def create_integration_event(order: OrderRequest) -> CreateOrderResponse:
         status="pending_payment",
         target_system=TARGET_SYSTEM,
         mapped_payload=mapped_payload,
-        message="Order created. Ready to open Stripe Checkout in test mode.",
+        message="Order created. Ready to open ECPay stage credit checkout.",
     )
     event_store.save(event)
 
@@ -34,11 +32,11 @@ def create_integration_event(order: OrderRequest) -> CreateOrderResponse:
         status="pending_payment",
         target_system=TARGET_SYSTEM,
         mapped_payload=mapped_payload,
-        next_step="POST /api/payments/checkout-session",
+        next_step="POST /api/payments/ecpay/checkout",
     )
 
 
-def start_checkout_for_event(event_id: str) -> CheckoutSessionResponse:
+def prepare_ecpay_checkout(event_id: str) -> ECPayCheckoutResponse:
     existing_event = event_store.get(event_id)
     if existing_event is None:
         raise HTTPException(
@@ -46,87 +44,79 @@ def start_checkout_for_event(event_id: str) -> CheckoutSessionResponse:
             detail=f"Event '{event_id}' not found.",
         )
 
-    try:
-        session = create_checkout_session(existing_event)
-    except StripeGatewayError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-
+    payload = build_checkout_payload(existing_event)
+    payment_page_url = f"/payments/ecpay/redirect/{event_id}"
     updated_event = existing_event.model_copy(
         update={
-            "status": "checkout_created",
-            "checkout_url": session["url"],
-            "stripe_checkout_session_id": session["id"],
-            "last_event_type": "checkout.session.created",
-            "message": "Stripe Checkout Session created in test mode.",
+            "status": "redirect_ready",
+            "payment_page_url": payment_page_url,
+            "merchant_trade_no": payload["MerchantTradeNo"],
+            "last_event_type": "ecpay.checkout.form_created",
+            "message": "ECPay stage checkout form is ready.",
         }
     )
     event_store.update(event_id, updated_event)
 
-    return CheckoutSessionResponse(
+    return ECPayCheckoutResponse(
         event_id=event_id,
-        status="checkout_created",
-        checkout_session_id=session["id"],
-        checkout_url=session["url"],
+        status="redirect_ready",
+        merchant_trade_no=payload["MerchantTradeNo"],
+        payment_page_url=payment_page_url,
+        ecpay_checkout_url=checkout_action_url(),
     )
 
 
-def handle_stripe_event(event_payload: dict[str, Any]) -> StripeWebhookResponse:
-    event_type = event_payload.get("type", "unknown")
-    data_object = event_payload.get("data", {}).get("object", {})
+def build_redirect_context(event_id: str) -> tuple[EventRecord, dict[str, str]]:
+    event = get_event_status(event_id)
+    payload = build_checkout_payload(event)
+    if event.merchant_trade_no != payload["MerchantTradeNo"]:
+        event = event.model_copy(update={"merchant_trade_no": payload["MerchantTradeNo"]})
+        event_store.update(event_id, event)
+    return event, payload
 
-    event_id = _extract_internal_event_id(event_type, data_object)
-    if event_id is None:
-        return StripeWebhookResponse(received=True, event_type=event_type)
+
+def handle_ecpay_return(form_data: dict[str, str]) -> ECPayWebhookResponse:
+    event_id = form_data.get("CustomField1")
+    merchant_trade_no = form_data.get("MerchantTradeNo")
+    rtn_code_value = form_data.get("RtnCode")
+    rtn_msg = form_data.get("RtnMsg")
+    payment_type = form_data.get("PaymentType")
+
+    if not event_id:
+        return ECPayWebhookResponse(received=True, merchant_trade_no=merchant_trade_no)
 
     existing_event = event_store.get(event_id)
     if existing_event is None:
-        return StripeWebhookResponse(received=True, event_type=event_type, event_id=event_id)
+        return ECPayWebhookResponse(
+            received=True,
+            event_id=event_id,
+            merchant_trade_no=merchant_trade_no,
+        )
 
-    status_value, message = _map_event_type_to_status(event_type)
+    rtn_code = _safe_int(rtn_code_value)
+    status_value = "paid" if rtn_code == 1 else "payment_failed"
+    message = "ECPay callback verified and payment succeeded." if rtn_code == 1 else "ECPay callback verified but payment failed."
+
     updated_event = existing_event.model_copy(
         update={
             "status": status_value,
-            "stripe_checkout_session_id": data_object.get("id")
-            if event_type == "checkout.session.completed"
-            else existing_event.stripe_checkout_session_id,
-            "stripe_payment_intent_id": data_object.get("payment_intent")
-            if event_type == "checkout.session.completed"
-            else data_object.get("id", existing_event.stripe_payment_intent_id),
-            "last_event_type": event_type,
+            "merchant_trade_no": merchant_trade_no or existing_event.merchant_trade_no,
+            "ecpay_trade_no": form_data.get("TradeNo"),
+            "payment_type": payment_type,
+            "rtn_code": rtn_code,
+            "rtn_msg": rtn_msg,
+            "last_event_type": "ecpay.return_url",
             "message": message,
         }
     )
     event_store.update(event_id, updated_event)
 
-    return StripeWebhookResponse(
+    return ECPayWebhookResponse(
         received=True,
-        event_type=event_type,
         event_id=event_id,
+        merchant_trade_no=merchant_trade_no,
         status=updated_event.status,
     )
-
-
-def _extract_internal_event_id(event_type: str, data_object: dict[str, Any]) -> str | None:
-    if event_type == "checkout.session.completed":
-        return data_object.get("client_reference_id") or data_object.get("metadata", {}).get("event_id")
-
-    if event_type.startswith("payment_intent."):
-        return data_object.get("metadata", {}).get("event_id")
-
-    return data_object.get("metadata", {}).get("event_id")
-
-
-def _map_event_type_to_status(event_type: str) -> tuple[str, str]:
-    if event_type == "checkout.session.completed":
-        return "payment_received", "Stripe Checkout completed in test mode."
-    if event_type == "payment_intent.succeeded":
-        return "paid", "Stripe payment intent succeeded in test mode."
-    if event_type == "payment_intent.payment_failed":
-        return "payment_failed", "Stripe payment intent failed in test mode."
-    return "payment_received", f"Received Stripe event: {event_type}."
 
 
 def get_event_status(event_id: str) -> EventRecord:
@@ -137,3 +127,12 @@ def get_event_status(event_id: str) -> EventRecord:
             detail=f"Event '{event_id}' not found.",
         )
     return event
+
+
+def _safe_int(value: str | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None

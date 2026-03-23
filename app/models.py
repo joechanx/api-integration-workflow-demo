@@ -1,11 +1,11 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 EventStatus = Literal[
     "pending_payment",
-    "checkout_created",
-    "payment_received",
+    "redirect_ready",
+    "payment_callback_received",
     "paid",
     "payment_failed",
 ]
@@ -17,7 +17,15 @@ class OrderRequest(BaseModel):
     customer_name: str = Field(..., min_length=2, max_length=100, examples=["Alex Chen"])
     customer_email: EmailStr = Field(..., examples=["alex@example.com"])
     amount: int = Field(..., gt=0, examples=[499])
-    currency: str = Field(..., min_length=3, max_length=3, examples=["usd"])
+    currency: str = Field(default="TWD", min_length=3, max_length=3, examples=["TWD"])
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: str) -> str:
+        upper = value.upper()
+        if upper != "TWD":
+            raise ValueError("ECPay stage demo only supports TWD.")
+        return upper
 
 
 class MappedOrder(BaseModel):
@@ -25,7 +33,7 @@ class MappedOrder(BaseModel):
     client_name: str
     client_email: EmailStr
     total_amount: int
-    currency: str
+    currency: Literal["TWD"]
     source_platform: str
 
 
@@ -37,9 +45,12 @@ class EventRecord(BaseModel):
     status: EventStatus
     target_system: str
     mapped_payload: MappedOrder
-    checkout_url: str | None = None
-    stripe_checkout_session_id: str | None = None
-    stripe_payment_intent_id: str | None = None
+    payment_page_url: str | None = None
+    merchant_trade_no: str | None = None
+    ecpay_trade_no: str | None = None
+    payment_type: str | None = None
+    rtn_code: int | None = None
+    rtn_msg: str | None = None
     last_event_type: str | None = None
     message: str | None = None
 
@@ -52,21 +63,22 @@ class CreateOrderResponse(BaseModel):
     next_step: str
 
 
-class CheckoutSessionRequest(BaseModel):
+class ECPayCheckoutRequest(BaseModel):
     event_id: str = Field(..., examples=["evt_0001"])
 
 
-class CheckoutSessionResponse(BaseModel):
+class ECPayCheckoutResponse(BaseModel):
     event_id: str
-    status: Literal["checkout_created"]
-    checkout_session_id: str
-    checkout_url: str
+    status: Literal["redirect_ready"]
+    merchant_trade_no: str
+    payment_page_url: str
+    ecpay_checkout_url: str
 
 
-class StripeWebhookResponse(BaseModel):
+class ECPayWebhookResponse(BaseModel):
     received: bool
-    event_type: str
     event_id: str | None = None
+    merchant_trade_no: str | None = None
     status: EventStatus | None = None
 
 
@@ -76,4 +88,4 @@ class PublicCheckoutForm(BaseModel):
     customer_name: str
     customer_email: EmailStr
     amount: int
-    currency: str = "usd"
+    currency: str = "TWD"

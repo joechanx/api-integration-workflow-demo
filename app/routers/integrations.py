@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Request
+from fastapi.responses import PlainTextResponse
 
-from app.models import CreateOrderResponse, EventRecord, OrderRequest, StripeWebhookResponse
-from app.services.processor import create_integration_event, get_event_status, handle_stripe_event
-from app.services.stripe_gateway import verify_and_parse_webhook
+from app.models import CreateOrderResponse, ECPayWebhookResponse, EventRecord, OrderRequest
+from app.services.ecpay_checkmac import verify_check_mac_value
+from app.services.processor import create_integration_event, get_event_status, handle_ecpay_return
 
 router = APIRouter(prefix="/api/integrations", tags=["integrations"])
 
@@ -12,14 +13,15 @@ def create_order_integration(order: OrderRequest) -> CreateOrderResponse:
     return create_integration_event(order)
 
 
-@router.post("/webhooks/stripe", response_model=StripeWebhookResponse)
-async def stripe_webhook_callback(
-    request: Request,
-    stripe_signature: str | None = Header(default=None, alias="Stripe-Signature"),
-) -> StripeWebhookResponse:
-    raw_body = await request.body()
-    event_payload = verify_and_parse_webhook(raw_body, stripe_signature)
-    return handle_stripe_event(event_payload)
+@router.post("/webhooks/ecpay/return", response_class=PlainTextResponse)
+async def ecpay_return_callback(request: Request) -> PlainTextResponse:
+    form = await request.form()
+    form_data = {key: str(value) for key, value in form.items()}
+    if not verify_check_mac_value(form_data):
+        return PlainTextResponse("0|CheckMacValue Error", status_code=400)
+
+    handle_ecpay_return(form_data)
+    return PlainTextResponse("1|OK")
 
 
 @router.get("/events/{event_id}", response_model=EventRecord)

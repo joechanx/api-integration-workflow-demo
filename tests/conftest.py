@@ -6,4 +6,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_test_secret")
+os.environ.setdefault("ECPAY_MERCHANT_ID", "3002607")
+os.environ.setdefault("ECPAY_HASH_KEY", "pwFHCqoQZGmho4w6")
+os.environ.setdefault("ECPAY_HASH_IV", "EkRm7iFT261dpevs")

@@ -1,12 +1,7 @@
-import hashlib
-import hmac
-import json
-import time
-
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import stripe_gateway
+from app.services.ecpay_checkmac import generate_check_mac_value
 from app.services.store import event_store
 
 client = TestClient(app)
@@ -16,19 +11,11 @@ def setup_function() -> None:
     event_store.clear()
 
 
-def _make_signature(payload: dict, secret: str) -> tuple[str, bytes]:
-    timestamp = int(time.time())
-    raw_body = json.dumps(payload).encode("utf-8")
-    signed_payload = f"{timestamp}.".encode("utf-8") + raw_body
-    signature = hmac.new(secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
-    return f"t={timestamp},v1={signature}", raw_body
-
-
 def test_home_page() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Stripe Test Mode" in response.text or "Test mode only" in response.text
+    assert "ECPay stage" in response.text
     assert "Create demo order" in response.text
 
 
@@ -46,7 +33,7 @@ def test_create_order_event() -> None:
         "customer_name": "Alex Chen",
         "customer_email": "alex@example.com",
         "amount": 499,
-        "currency": "usd",
+        "currency": "TWD",
     }
 
     response = client.post("/api/integrations/orders", json=payload)
@@ -54,79 +41,75 @@ def test_create_order_event() -> None:
 
     assert response.status_code == 200
     assert body["status"] == "pending_payment"
-    assert body["target_system"] == "stripe_checkout"
+    assert body["target_system"] == "ecpay_stage_credit"
     assert body["mapped_payload"]["external_order_id"] == "DEMO-1001"
 
 
-def test_create_checkout_session_updates_event(monkeypatch) -> None:
+def test_prepare_checkout_updates_event() -> None:
     create_payload = {
         "source": "demo_store",
         "order_id": "DEMO-1001",
         "customer_name": "Alex Chen",
         "customer_email": "alex@example.com",
         "amount": 499,
-        "currency": "usd",
+        "currency": "TWD",
     }
     create_response = client.post("/api/integrations/orders", json=create_payload)
     event_id = create_response.json()["event_id"]
 
-    def fake_create_checkout_session(event):
-        assert event.event_id == event_id
-        return {"id": "cs_test_123", "url": "https://checkout.stripe.com/pay/cs_test_123"}
-
-    monkeypatch.setattr(stripe_gateway, "create_checkout_session", fake_create_checkout_session)
-    from app.services import processor
-    monkeypatch.setattr(processor, "create_checkout_session", fake_create_checkout_session)
-
-    response = client.post("/api/payments/checkout-session", json={"event_id": event_id})
+    response = client.post("/api/payments/ecpay/checkout", json={"event_id": event_id})
 
     assert response.status_code == 200
-    assert response.json()["status"] == "checkout_created"
-    assert response.json()["checkout_session_id"] == "cs_test_123"
+    assert response.json()["status"] == "redirect_ready"
+    assert response.json()["merchant_trade_no"].startswith("DEMO")
+    assert response.json()["payment_page_url"] == f"/payments/ecpay/redirect/{event_id}"
 
     event_response = client.get(f"/api/integrations/events/{event_id}")
-    assert event_response.json()["status"] == "checkout_created"
+    assert event_response.json()["status"] == "redirect_ready"
 
 
-def test_stripe_webhook_updates_event_status() -> None:
+def test_ecpay_return_updates_event_status() -> None:
     create_payload = {
         "source": "demo_store",
         "order_id": "DEMO-1001",
         "customer_name": "Alex Chen",
         "customer_email": "alex@example.com",
         "amount": 499,
-        "currency": "usd",
+        "currency": "TWD",
     }
     create_response = client.post("/api/integrations/orders", json=create_payload)
     event_id = create_response.json()["event_id"]
+    checkout_response = client.post("/api/payments/ecpay/checkout", json={"event_id": event_id})
+    merchant_trade_no = checkout_response.json()["merchant_trade_no"]
 
-    webhook_payload = {
-        "id": "evt_test_123",
-        "type": "checkout.session.completed",
-        "data": {
-            "object": {
-                "id": "cs_test_123",
-                "client_reference_id": event_id,
-                "payment_intent": "pi_test_123",
-                "metadata": {"event_id": event_id},
-            }
-        },
+    form_payload = {
+        "MerchantID": "3002607",
+        "MerchantTradeNo": merchant_trade_no,
+        "StoreID": "",
+        "RtnCode": "1",
+        "RtnMsg": "交易成功",
+        "TradeNo": "241234567890",
+        "TradeAmt": "499",
+        "PaymentDate": "2026/03/24 12:00:00",
+        "PaymentType": "Credit_CreditCard",
+        "TradeDate": "2026/03/24 12:00:00",
+        "SimulatePaid": "0",
+        "CustomField1": event_id,
+        "CustomField2": "DEMO-1001",
+        "CustomField3": "alex@example.com",
+        "CustomField4": "demo_store",
     }
-    signature, raw_body = _make_signature(webhook_payload, "whsec_test_secret")
+    form_payload["CheckMacValue"] = generate_check_mac_value(form_payload)
 
-    response = client.post(
-        "/api/integrations/webhooks/stripe",
-        content=raw_body,
-        headers={"Stripe-Signature": signature, "Content-Type": "application/json"},
-    )
+    response = client.post("/api/integrations/webhooks/ecpay/return", data=form_payload)
 
     assert response.status_code == 200
-    assert response.json()["status"] == "payment_received"
+    assert response.text == "1|OK"
 
     event_response = client.get(f"/api/integrations/events/{event_id}")
     assert event_response.status_code == 200
-    assert event_response.json()["status"] == "payment_received"
-    assert event_response.json()["stripe_checkout_session_id"] == "cs_test_123"
+    assert event_response.json()["status"] == "paid"
+    assert event_response.json()["ecpay_trade_no"] == "241234567890"
 
 
 def test_invalid_order_payload_returns_422() -> None:
@@ -136,7 +119,7 @@ def test_invalid_order_payload_returns_422() -> None:
         "customer_name": "A",
         "customer_email": "not-an-email",
         "amount": 0,
-        "currency": "us",
+        "currency": "USD",
     }
 
     response = client.post("/api/integrations/orders", json=invalid_payload)
@@ -145,6 +128,26 @@ def test_invalid_order_payload_returns_422() -> None:
 
 
 def test_checkout_for_missing_event_returns_404() -> None:
-    response = client.post("/api/payments/checkout-session", json={"event_id": "evt_9999"})
+    response = client.post("/api/payments/ecpay/checkout", json={"event_id": "evt_9999"})
 
     assert response.status_code == 404
+
+
+def test_redirect_page_renders_form() -> None:
+    create_payload = {
+        "source": "demo_store",
+        "order_id": "DEMO-1001",
+        "customer_name": "Alex Chen",
+        "customer_email": "alex@example.com",
+        "amount": 499,
+        "currency": "TWD",
+    }
+    create_response = client.post("/api/integrations/orders", json=create_payload)
+    event_id = create_response.json()["event_id"]
+    client.post("/api/payments/ecpay/checkout", json={"event_id": event_id})
+
+    response = client.get(f"/payments/ecpay/redirect/{event_id}")
+
+    assert response.status_code == 200
+    assert "Redirecting to ECPay stage checkout" in response.text
+    assert "Continue to ECPay stage checkout" in response.text
