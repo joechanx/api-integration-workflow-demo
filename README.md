@@ -8,8 +8,8 @@ This version is prepared for direct deployment from GitHub to Railway so you can
 
 Open:
 
-- Home: `api-integration-workflow-demo-production.up.railway.app`
-- Swagger UI: `api-integration-workflow-demo-production.up.railway.app/docs`
+- [Home](https://api-integration-workflow-demo-production.up.railway.app/)
+- [Swagger UI](https://api-integration-workflow-demo-production.up.railway.app/docs)
   
 ## What this project demonstrates
 
