@@ -15,9 +15,9 @@ def test_home_page() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "ECPay stage" in response.text
+    assert "SQLite" in response.text
+    assert "Recent events" in response.text
     assert "Create demo order" in response.text
-    assert "auto-refresh" in response.text
 
 
 def test_health_check() -> None:
@@ -27,7 +27,7 @@ def test_health_check() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_create_order_event() -> None:
+def test_create_order_event_uses_uuid_and_persists() -> None:
     payload = {
         "source": "demo_store",
         "order_id": "DEMO-1001",
@@ -42,8 +42,12 @@ def test_create_order_event() -> None:
 
     assert response.status_code == 200
     assert body["status"] == "pending_payment"
-    assert body["target_system"] == "ecpay_stage_credit"
-    assert body["mapped_payload"]["external_order_id"] == "DEMO-1001"
+    assert body["event_id"].startswith("evt_")
+    assert len(body["event_id"]) > 20
+    assert body["recent_lookup_url"].endswith(body["event_id"])
+
+    event_response = client.get(f"/api/integrations/events/{body['event_id']}")
+    assert event_response.status_code == 200
 
 
 def test_prepare_checkout_updates_event() -> None:
@@ -62,14 +66,15 @@ def test_prepare_checkout_updates_event() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "redirect_ready"
-    assert response.json()["merchant_trade_no"].startswith("DEMO")
+    assert response.json()["merchant_trade_no"].startswith("DM")
+    assert len(response.json()["merchant_trade_no"]) == 20
     assert response.json()["payment_page_url"] == f"/payments/ecpay/redirect/{event_id}"
 
     event_response = client.get(f"/api/integrations/events/{event_id}")
     assert event_response.json()["status"] == "redirect_ready"
 
 
-def test_result_page_marks_event_as_processing_before_callback() -> None:
+def test_result_page_post_redirects_to_reload_safe_get_url() -> None:
     create_payload = {
         "source": "demo_store",
         "order_id": "DEMO-1001",
@@ -88,15 +93,18 @@ def test_result_page_marks_event_as_processing_before_callback() -> None:
         data={
             "MerchantTradeNo": merchant_trade_no,
             "RtnMsg": "交易成功",
+            "CustomField1": event_id,
         },
+        follow_redirects=False,
     )
 
-    assert response.status_code == 200
-    assert "Final status is syncing" in response.text
-    assert "Refresh payment status" in response.text
+    assert response.status_code == 303
+    assert f"event_id={event_id}" in response.headers["location"]
 
-    event_response = client.get(f"/api/integrations/events/{event_id}")
-    assert event_response.json()["status"] == "payment_processing"
+    follow = client.get(response.headers["location"])
+    assert follow.status_code == 200
+    assert event_id in follow.text
+    assert "keeps the event ID in the URL" in follow.text
 
 
 def test_ecpay_return_updates_event_status() -> None:
@@ -143,6 +151,23 @@ def test_ecpay_return_updates_event_status() -> None:
     assert event_response.json()["ecpay_trade_no"] == "241234567890"
 
 
+def test_recent_events_endpoint_returns_latest_records() -> None:
+    for idx in range(2):
+        payload = {
+            "source": "demo_store",
+            "order_id": f"DEMO-10{idx}",
+            "customer_name": "Alex Chen",
+            "customer_email": "alex@example.com",
+            "amount": 499,
+            "currency": "TWD",
+        }
+        client.post("/api/integrations/orders", json=payload)
+
+    response = client.get("/api/integrations/events?limit=2")
+    assert response.status_code == 200
+    assert len(response.json()["events"]) == 2
+
+
 def test_invalid_order_payload_returns_422() -> None:
     invalid_payload = {
         "source": "s",
@@ -159,7 +184,7 @@ def test_invalid_order_payload_returns_422() -> None:
 
 
 def test_checkout_for_missing_event_returns_404() -> None:
-    response = client.post("/api/payments/ecpay/checkout", json={"event_id": "evt_9999"})
+    response = client.post("/api/payments/ecpay/checkout", json={"event_id": "evt_missing"})
 
     assert response.status_code == 404
 

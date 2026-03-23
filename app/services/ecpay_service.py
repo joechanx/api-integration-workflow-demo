@@ -1,4 +1,5 @@
 from datetime import datetime
+from secrets import token_hex
 
 from fastapi import HTTPException, status
 
@@ -14,7 +15,7 @@ def build_checkout_payload(event: EventRecord) -> dict[str, str]:
             detail="ECPay stage demo only supports TWD.",
         )
 
-    merchant_trade_no = event.merchant_trade_no or _generate_merchant_trade_no(event.event_id)
+    merchant_trade_no = event.merchant_trade_no or _generate_merchant_trade_no()
     payload = {
         "MerchantID": ECPAY_MERCHANT_ID,
         "MerchantTradeNo": merchant_trade_no,
@@ -42,7 +43,7 @@ def checkout_action_url() -> str:
     return ECPAY_CHECKOUT_URL
 
 
-def _generate_merchant_trade_no(event_id: str) -> str:
-    digits = event_id.replace("evt_", "")[-4:]
-    timestamp = datetime.now().strftime("%m%d%H%M%S")
-    return f"DEMO{timestamp}{digits}"
+def _generate_merchant_trade_no() -> str:
+    timestamp = datetime.now().strftime("%y%m%d%H%M%S")
+    suffix = token_hex(3).upper()
+    return f"DM{timestamp}{suffix}"

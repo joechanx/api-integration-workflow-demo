@@ -1,3 +1,6 @@
+from datetime import datetime, timezone
+from uuid import uuid4
+
 from fastapi import HTTPException, status
 
 from app.core.config import TARGET_SYSTEM
@@ -13,9 +16,14 @@ from app.services.mapper import map_order_payload
 from app.services.store import event_store
 
 
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 def create_integration_event(order: OrderRequest) -> CreateOrderResponse:
     mapped_payload = map_order_payload(order)
-    event_id = event_store.next_event_id()
+    event_id = f"evt_{uuid4().hex}"
+    now = _utc_now_iso()
 
     event = EventRecord(
         event_id=event_id,
@@ -24,6 +32,8 @@ def create_integration_event(order: OrderRequest) -> CreateOrderResponse:
         target_system=TARGET_SYSTEM,
         mapped_payload=mapped_payload,
         message="Order created. Ready to open ECPay stage credit checkout.",
+        created_at=now,
+        updated_at=now,
     )
     event_store.save(event)
 
@@ -33,6 +43,7 @@ def create_integration_event(order: OrderRequest) -> CreateOrderResponse:
         target_system=TARGET_SYSTEM,
         mapped_payload=mapped_payload,
         next_step="POST /api/payments/ecpay/checkout",
+        recent_lookup_url=f"/api/integrations/events/{event_id}",
     )
 
 
@@ -119,10 +130,10 @@ def handle_ecpay_return(form_data: dict[str, str]) -> ECPayWebhookResponse:
         update={
             "status": status_value,
             "merchant_trade_no": merchant_trade_no or event.merchant_trade_no,
-            "ecpay_trade_no": form_data.get("TradeNo"),
-            "payment_type": payment_type,
+            "ecpay_trade_no": form_data.get("TradeNo") or event.ecpay_trade_no,
+            "payment_type": payment_type or event.payment_type,
             "rtn_code": rtn_code,
-            "rtn_msg": rtn_msg,
+            "rtn_msg": rtn_msg or event.rtn_msg,
             "last_event_type": "ecpay.return_url",
             "message": message,
         }
@@ -145,6 +156,10 @@ def get_event_status(event_id: str) -> EventRecord:
             detail=f"Event '{event_id}' not found.",
         )
     return event
+
+
+def list_recent_events(limit: int = 5) -> list[EventRecord]:
+    return event_store.list_recent(limit=limit)
 
 
 def _resolve_event(form_data: dict[str, str]) -> EventRecord | None:

@@ -54,6 +54,8 @@ class EventRecord(BaseModel):
     rtn_msg: str | None = None
     last_event_type: str | None = None
     message: str | None = None
+    created_at: str
+    updated_at: str
 
 
 class CreateOrderResponse(BaseModel):
@@ -62,10 +64,11 @@ class CreateOrderResponse(BaseModel):
     target_system: str
     mapped_payload: MappedOrder
     next_step: str
+    recent_lookup_url: str
 
 
 class ECPayCheckoutRequest(BaseModel):
-    event_id: str = Field(..., examples=["evt_0001"])
+    event_id: str = Field(..., examples=["evt_8f0b2c9e2e4d4f7a8e3a9f53b2bf0eb4"])
 
 
 class ECPayCheckoutResponse(BaseModel):
@@ -90,3 +93,7 @@ class PublicCheckoutForm(BaseModel):
     customer_email: EmailStr
     amount: int
     currency: str = "TWD"
+
+
+class RecentEventsResponse(BaseModel):
+    events: list[EventRecord]

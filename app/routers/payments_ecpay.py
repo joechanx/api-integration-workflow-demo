@@ -1,9 +1,11 @@
+from urllib.parse import urlencode
+
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.models import ECPayCheckoutRequest, ECPayCheckoutResponse
 from app.services.ecpay_service import checkout_action_url
-from app.services.processor import build_redirect_context, mark_browser_return, prepare_ecpay_checkout
+from app.services.processor import build_redirect_context, get_event_status, mark_browser_return, prepare_ecpay_checkout
 
 router = APIRouter(prefix="/api/payments/ecpay", tags=["payments"])
 page_router = APIRouter(tags=["payment-pages"])
@@ -38,17 +40,20 @@ def ecpay_redirect_page(event_id: str) -> str:
     """
 
 
-@page_router.api_route("/payments/ecpay/result", methods=["GET", "POST"], response_class=HTMLResponse)
-async def ecpay_result_page(request: Request) -> str:
-    form_data: dict[str, str] = {}
-    if request.method == "POST":
-        form = await request.form()
-        form_data = {key: str(value) for key, value in form.items()}
-
+@page_router.post("/payments/ecpay/result")
+async def ecpay_result_post(request: Request) -> RedirectResponse:
+    form = await request.form()
+    form_data = {key: str(value) for key, value in form.items()}
     event = mark_browser_return(form_data) if form_data else None
-    event_id = request.query_params.get("event_id") or (event.event_id if event else form_data.get("CustomField1")) or ""
-    merchant_trade_no = form_data.get("MerchantTradeNo") or (event.merchant_trade_no if event else "")
-    return _build_result_page(event_id=event_id, merchant_trade_no=merchant_trade_no)
+    event_id = (event.event_id if event else form_data.get("CustomField1")) or ""
+    merchant_trade_no = form_data.get("MerchantTradeNo") or (event.merchant_trade_no if event else "") or ""
+    query = urlencode({k: v for k, v in {"event_id": event_id, "merchant_trade_no": merchant_trade_no}.items() if v})
+    return RedirectResponse(url=f"/payments/ecpay/result?{query}", status_code=303)
+
+
+@page_router.get("/payments/ecpay/result", response_class=HTMLResponse)
+def ecpay_result_page(event_id: str | None = None, merchant_trade_no: str | None = None) -> str:
+    return _build_result_page(event_id=event_id or "", merchant_trade_no=merchant_trade_no or "")
 
 
 @page_router.get("/payments/ecpay/back", response_class=HTMLResponse)
@@ -68,70 +73,13 @@ def ecpay_back_page(event_id: str | None = None) -> str:
 def _build_result_page(event_id: str, merchant_trade_no: str) -> str:
     safe_event_id = _escape_html(event_id)
     safe_trade_no = _escape_html(merchant_trade_no)
-    polling_block = ""
+    initial_event = None
     if event_id:
-        polling_block = f"""
-        <script>
-          const eventId = "{safe_event_id}";
-          const statusUrl = `/api/integrations/events/${{eventId}}`;
-          const statusEl = document.getElementById('status-box');
-          const summaryEl = document.getElementById('summary');
-          const countdownEl = document.getElementById('countdown');
-          let attempts = 0;
-          const maxAttempts = 15;
-
-          function renderState(data) {{
-            statusEl.textContent = JSON.stringify(data, null, 2);
-            if (data.status === 'paid') {{
-              summaryEl.textContent = 'Payment confirmed. The ECPay server callback has updated the demo event.';
-              summaryEl.style.color = '#166534';
-              return true;
-            }}
-            if (data.status === 'payment_failed') {{
-              summaryEl.textContent = 'Payment failed or was declined. Review the returned event data below.';
-              summaryEl.style.color = '#991b1b';
-              return true;
-            }}
-            if (data.status === 'payment_processing' || data.status === 'redirect_ready') {{
-              summaryEl.textContent = 'Payment was submitted. Waiting for the ECPay server callback to confirm the final result.';
-              summaryEl.style.color = '#92400e';
-            }} else {{
-              summaryEl.textContent = 'Waiting for the latest event status.';
-              summaryEl.style.color = '#374151';
-            }}
-            return false;
-          }}
-
-          async function pollStatus() {{
-            attempts += 1;
-            countdownEl.textContent = `Auto-refresh ${{attempts}}/${{maxAttempts}}`;
-
-            try {{
-              const response = await fetch(statusUrl);
-              const data = await response.json();
-              const done = renderState(data);
-              if (!done && attempts < maxAttempts) {{
-                setTimeout(pollStatus, 2000);
-              }} else if (!done) {{
-                summaryEl.textContent = 'Still syncing. Use the refresh button below to check again.';
-                summaryEl.style.color = '#374151';
-              }}
-            }} catch (error) {{
-              statusEl.textContent = `Unable to load event status: ${{error}}`;
-              summaryEl.textContent = 'Status check failed. Use the refresh button below to try again.';
-              summaryEl.style.color = '#991b1b';
-            }}
-          }}
-
-          async function refreshNow() {{
-            attempts = 0;
-            await pollStatus();
-          }}
-
-          window.refreshNow = refreshNow;
-          pollStatus();
-        </script>
-        """
+        try:
+            initial_event = get_event_status(event_id)
+        except Exception:
+            initial_event = None
+    initial_json = initial_event.model_dump_json(indent=2) if initial_event else 'null'
     return f"""
     <!doctype html>
     <html lang="en">
@@ -155,8 +103,82 @@ def _build_result_page(event_id: str, merchant_trade_no: str) -> str:
           <a href="/docs" style="display: inline-block; text-decoration: none; border-radius: 12px; padding: 12px 16px; background: #f3f4f6; color: #111827; font-weight: 600;">Open Swagger UI</a>
         </div>
         <pre id="status-box" style="white-space: pre-wrap; word-break: break-word; background: #f9fafb; padding: 14px; border-radius: 14px; min-height: 180px;">Waiting for event status...</pre>
-        <p style="color: #6b7280;">For ECPay demo flows, the client redirect can arrive before the server callback. This page keeps checking until the final result is confirmed.</p>
-        {polling_block}
+        <p style="color: #6b7280;">This page keeps the event ID in the URL, so reload will continue tracking the same payment instead of creating a new order.</p>
+        <script>
+          const eventId = {safe_event_id!r};
+          const merchantTradeNo = {safe_trade_no!r};
+          const statusEl = document.getElementById('status-box');
+          const summaryEl = document.getElementById('summary');
+          const countdownEl = document.getElementById('countdown');
+          let attempts = 0;
+          const maxAttempts = 45;
+          const initialData = {initial_json};
+
+          function renderState(data) {{
+            statusEl.textContent = JSON.stringify(data, null, 2);
+            if (!data) {{
+              summaryEl.textContent = 'Waiting for the latest event status.';
+              summaryEl.style.color = '#374151';
+              return false;
+            }}
+            if (data.status === 'paid') {{
+              summaryEl.textContent = 'Payment confirmed. The ECPay server callback has updated the demo event.';
+              summaryEl.style.color = '#166534';
+              return true;
+            }}
+            if (data.status === 'payment_failed') {{
+              summaryEl.textContent = 'Payment failed or was declined. Review the returned event data below.';
+              summaryEl.style.color = '#991b1b';
+              return true;
+            }}
+            if (data.status === 'payment_processing' || data.status === 'redirect_ready') {{
+              summaryEl.textContent = 'Payment was submitted. Waiting for the ECPay server callback to confirm the final result.';
+              summaryEl.style.color = '#92400e';
+            }} else {{
+              summaryEl.textContent = 'Waiting for the latest event status.';
+              summaryEl.style.color = '#374151';
+            }}
+            return false;
+          }}
+
+          async function pollStatus() {{
+            if (!eventId) {{
+              statusEl.textContent = JSON.stringify({{ event_id: null, merchant_trade_no: merchantTradeNo, message: 'Event ID was not detected on this page.' }}, null, 2);
+              summaryEl.textContent = 'This page needs an event ID to keep polling.';
+              summaryEl.style.color = '#991b1b';
+              return;
+            }}
+            attempts += 1;
+            countdownEl.textContent = `Auto-refresh ${{attempts}}/${{maxAttempts}}`;
+            try {{
+              const response = await fetch(`/api/integrations/events/${{eventId}}`);
+              const data = await response.json();
+              const done = renderState(data);
+              localStorage.setItem('latest_event_id', eventId);
+              if (!done && attempts < maxAttempts) {{
+                setTimeout(pollStatus, 2000);
+              }} else if (!done) {{
+                summaryEl.textContent = 'Still syncing. Use the refresh button below to keep checking the same event.';
+                summaryEl.style.color = '#374151';
+              }}
+            }} catch (error) {{
+              statusEl.textContent = `Unable to load event status: ${{error}}`;
+              summaryEl.textContent = 'Status check failed. Use the refresh button below to try again.';
+              summaryEl.style.color = '#991b1b';
+            }}
+          }}
+
+          async function refreshNow() {{
+            attempts = 0;
+            await pollStatus();
+          }}
+          window.refreshNow = refreshNow;
+
+          if (initialData) {{
+            renderState(initialData);
+          }}
+          pollStatus();
+        </script>
       </body>
     </html>
     """
