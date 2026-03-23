@@ -7,6 +7,6 @@ def map_order_payload(order: OrderRequest) -> MappedOrder:
         client_name=order.customer_name,
         client_email=order.customer_email,
         total_amount=order.amount,
-        currency=order.currency.upper(),
+        currency=order.currency.lower(),
         source_platform=order.source.lower(),
     )

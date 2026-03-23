@@ -2,14 +2,22 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+EventStatus = Literal[
+    "pending_payment",
+    "checkout_created",
+    "payment_received",
+    "paid",
+    "payment_failed",
+]
+
 
 class OrderRequest(BaseModel):
-    source: str = Field(..., min_length=2, max_length=50, examples=["shopify"])
-    order_id: str = Field(..., min_length=3, max_length=100, examples=["SHP-1001"])
+    source: str = Field(..., min_length=2, max_length=50, examples=["demo_store"])
+    order_id: str = Field(..., min_length=3, max_length=100, examples=["DEMO-1001"])
     customer_name: str = Field(..., min_length=2, max_length=100, examples=["Alex Chen"])
     customer_email: EmailStr = Field(..., examples=["alex@example.com"])
-    amount: int = Field(..., gt=0, examples=[1299])
-    currency: str = Field(..., min_length=3, max_length=3, examples=["TWD"])
+    amount: int = Field(..., gt=0, examples=[499])
+    currency: str = Field(..., min_length=3, max_length=3, examples=["usd"])
 
 
 class MappedOrder(BaseModel):
@@ -26,30 +34,46 @@ class EventRecord(BaseModel):
 
     event_id: str
     source: str
-    status: Literal["received", "processed", "failed"]
+    status: EventStatus
     target_system: str
     mapped_payload: MappedOrder
-    external_reference: str | None = None
+    checkout_url: str | None = None
+    stripe_checkout_session_id: str | None = None
+    stripe_payment_intent_id: str | None = None
+    last_event_type: str | None = None
     message: str | None = None
 
 
 class CreateOrderResponse(BaseModel):
     event_id: str
-    status: Literal["received"]
+    status: Literal["pending_payment"]
     target_system: str
     mapped_payload: MappedOrder
-    webhook_hint: str
+    next_step: str
 
 
-class WebhookCallbackRequest(BaseModel):
+class CheckoutSessionRequest(BaseModel):
     event_id: str = Field(..., examples=["evt_0001"])
-    result: Literal["processed", "failed"]
-    reference_id: str | None = Field(default=None, examples=["ERP-2026-0001"])
-    message: str | None = Field(default=None, max_length=250, examples=["Order synced successfully"])
 
 
-class WebhookCallbackResponse(BaseModel):
+class CheckoutSessionResponse(BaseModel):
     event_id: str
-    status: Literal["processed", "failed"]
-    reference_id: str | None = None
-    message: str | None = None
+    status: Literal["checkout_created"]
+    checkout_session_id: str
+    checkout_url: str
+
+
+class StripeWebhookResponse(BaseModel):
+    received: bool
+    event_type: str
+    event_id: str | None = None
+    status: EventStatus | None = None
+
+
+class PublicCheckoutForm(BaseModel):
+    source: str = "demo_store"
+    order_id: str
+    customer_name: str
+    customer_email: EmailStr
+    amount: int
+    currency: str = "usd"
