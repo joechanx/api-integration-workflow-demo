@@ -6,10 +6,10 @@ This version is prepared for direct deployment from GitHub to Railway so you can
 
 ![Portfolio cover](docs/portfolio-cover.png)
 
-Open:
+## Live Demo
 
-- [Home](https://api-integration-workflow-demo-production.up.railway.app/)
-- [Swagger UI](https://api-integration-workflow-demo-production.up.railway.app/docs)
+- **Demo URL:** [Home](https://api-integration-workflow-demo-production.up.railway.app/)
+- **Demo URL:** [Swagger UI](https://api-integration-workflow-demo-production.up.railway.app/docs)
 
 ## What this project demonstrates
 
