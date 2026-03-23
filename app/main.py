@@ -8,8 +8,8 @@ from app.routers.payments_ecpay import router as payments_router
 
 app = FastAPI(
     title=APP_NAME,
-    version="0.4.0",
-    description="A minimal FastAPI demo that showcases API request handling, ECPay stage checkout, callback verification, and payment status tracking.",
+    version="0.5.0",
+    description="A minimal FastAPI demo that showcases API request handling, ECPay stage checkout, callback verification, browser return polling, and payment status tracking.",
 )
 
 
@@ -42,7 +42,7 @@ def home() -> str:
       <body>
         <h1>{APP_NAME}</h1>
         <p class="muted">Environment: <strong>{APP_ENV}</strong> · Target system: <strong>{TARGET_SYSTEM}</strong></p>
-        <p>This live demo shows a simple backend workflow: create a demo order, redirect to ECPay stage credit checkout, then confirm the final status after ECPay sends a server-side callback.</p>
+        <p>This live demo shows a practical payment flow: create a demo order, redirect to ECPay stage credit checkout, then let the result page auto-refresh until the server callback confirms the final status.</p>
 
         <div class="grid">
           <div class="card">
@@ -52,6 +52,7 @@ def home() -> str:
               <li>Card: <code>4311-9522-2222-2222</code></li>
               <li>CVV: <code>222</code></li>
               <li>Expiry: any future date</li>
+              <li>OTP: <code>1234</code> if prompted</li>
               <li>Currency: <code>TWD</code> only</li>
             </ul>
           </div>
@@ -103,7 +104,7 @@ def home() -> str:
             <li>Copy the returned <code>event_id</code>.</li>
             <li>Prepare the ECPay stage credit checkout page.</li>
             <li>Complete the test payment on ECPay-hosted checkout.</li>
-            <li>Wait a moment, then query the same <code>event_id</code> to confirm the updated status.</li>
+            <li>After the browser returns, the result page will auto-refresh until the callback confirms the final status.</li>
           </ol>
         </div>
 

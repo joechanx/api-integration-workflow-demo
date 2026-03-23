@@ -17,6 +17,12 @@ class EventStore:
     def get(self, event_id: str) -> EventRecord | None:
         return self._events.get(event_id)
 
+    def get_by_merchant_trade_no(self, merchant_trade_no: str) -> EventRecord | None:
+        for event in self._events.values():
+            if event.merchant_trade_no == merchant_trade_no:
+                return event
+        return None
+
     def update(self, event_id: str, event: EventRecord) -> EventRecord:
         self._events[event_id] = event
         return event

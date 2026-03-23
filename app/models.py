@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 EventStatus = Literal[
     "pending_payment",
     "redirect_ready",
+    "payment_processing",
     "payment_callback_received",
     "paid",
     "payment_failed",

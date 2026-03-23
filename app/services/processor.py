@@ -75,32 +75,50 @@ def build_redirect_context(event_id: str) -> tuple[EventRecord, dict[str, str]]:
     return event, payload
 
 
+def mark_browser_return(form_data: dict[str, str]) -> EventRecord | None:
+    event = _resolve_event(form_data)
+    if event is None:
+        return None
+
+    if event.status in {"paid", "payment_failed"}:
+        return event
+
+    rtn_msg = form_data.get("RtnMsg") or event.rtn_msg
+    updated_event = event.model_copy(
+        update={
+            "status": "payment_processing",
+            "merchant_trade_no": form_data.get("MerchantTradeNo") or event.merchant_trade_no,
+            "rtn_msg": rtn_msg,
+            "last_event_type": "ecpay.order_result_url",
+            "message": "Browser returned from ECPay. Waiting for server callback confirmation.",
+        }
+    )
+    event_store.update(event.event_id, updated_event)
+    return updated_event
+
+
 def handle_ecpay_return(form_data: dict[str, str]) -> ECPayWebhookResponse:
-    event_id = form_data.get("CustomField1")
+    event = _resolve_event(form_data)
     merchant_trade_no = form_data.get("MerchantTradeNo")
     rtn_code_value = form_data.get("RtnCode")
     rtn_msg = form_data.get("RtnMsg")
     payment_type = form_data.get("PaymentType")
 
-    if not event_id:
+    if event is None:
         return ECPayWebhookResponse(received=True, merchant_trade_no=merchant_trade_no)
-
-    existing_event = event_store.get(event_id)
-    if existing_event is None:
-        return ECPayWebhookResponse(
-            received=True,
-            event_id=event_id,
-            merchant_trade_no=merchant_trade_no,
-        )
 
     rtn_code = _safe_int(rtn_code_value)
     status_value = "paid" if rtn_code == 1 else "payment_failed"
-    message = "ECPay callback verified and payment succeeded." if rtn_code == 1 else "ECPay callback verified but payment failed."
+    message = (
+        "ECPay callback verified and payment succeeded."
+        if rtn_code == 1
+        else "ECPay callback verified but payment failed."
+    )
 
-    updated_event = existing_event.model_copy(
+    updated_event = event.model_copy(
         update={
             "status": status_value,
-            "merchant_trade_no": merchant_trade_no or existing_event.merchant_trade_no,
+            "merchant_trade_no": merchant_trade_no or event.merchant_trade_no,
             "ecpay_trade_no": form_data.get("TradeNo"),
             "payment_type": payment_type,
             "rtn_code": rtn_code,
@@ -109,11 +127,11 @@ def handle_ecpay_return(form_data: dict[str, str]) -> ECPayWebhookResponse:
             "message": message,
         }
     )
-    event_store.update(event_id, updated_event)
+    event_store.update(event.event_id, updated_event)
 
     return ECPayWebhookResponse(
         received=True,
-        event_id=event_id,
+        event_id=event.event_id,
         merchant_trade_no=merchant_trade_no,
         status=updated_event.status,
     )
@@ -127,6 +145,19 @@ def get_event_status(event_id: str) -> EventRecord:
             detail=f"Event '{event_id}' not found.",
         )
     return event
+
+
+def _resolve_event(form_data: dict[str, str]) -> EventRecord | None:
+    event_id = form_data.get("CustomField1")
+    if event_id:
+        event = event_store.get(event_id)
+        if event is not None:
+            return event
+
+    merchant_trade_no = form_data.get("MerchantTradeNo")
+    if merchant_trade_no:
+        return event_store.get_by_merchant_trade_no(merchant_trade_no)
+    return None
 
 
 def _safe_int(value: str | None) -> int | None:

@@ -17,6 +17,7 @@ def test_home_page() -> None:
     assert response.status_code == 200
     assert "ECPay stage" in response.text
     assert "Create demo order" in response.text
+    assert "auto-refresh" in response.text
 
 
 def test_health_check() -> None:
@@ -66,6 +67,36 @@ def test_prepare_checkout_updates_event() -> None:
 
     event_response = client.get(f"/api/integrations/events/{event_id}")
     assert event_response.json()["status"] == "redirect_ready"
+
+
+def test_result_page_marks_event_as_processing_before_callback() -> None:
+    create_payload = {
+        "source": "demo_store",
+        "order_id": "DEMO-1001",
+        "customer_name": "Alex Chen",
+        "customer_email": "alex@example.com",
+        "amount": 499,
+        "currency": "TWD",
+    }
+    create_response = client.post("/api/integrations/orders", json=create_payload)
+    event_id = create_response.json()["event_id"]
+    checkout_response = client.post("/api/payments/ecpay/checkout", json={"event_id": event_id})
+    merchant_trade_no = checkout_response.json()["merchant_trade_no"]
+
+    response = client.post(
+        "/payments/ecpay/result",
+        data={
+            "MerchantTradeNo": merchant_trade_no,
+            "RtnMsg": "交易成功",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Final status is syncing" in response.text
+    assert "Refresh payment status" in response.text
+
+    event_response = client.get(f"/api/integrations/events/{event_id}")
+    assert event_response.json()["status"] == "payment_processing"
 
 
 def test_ecpay_return_updates_event_status() -> None:
