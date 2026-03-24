@@ -21,7 +21,7 @@ This version is prepared for direct deployment from GitHub to Railway so you can
 - Optional Slack incoming webhook notification after confirmed payment
 - Recent event lookup for repeatable live demos
 
-## Why this v4 update matters
+## Why earlier V4 update matters
 
 The previous in-memory demo could lose state after a Railway restart and could confuse users when a browser reload created a new event flow. This version fixes that by:
 
