@@ -13,6 +13,7 @@ from app.models import (
 )
 from app.services.ecpay_service import build_checkout_payload, checkout_action_url
 from app.services.mapper import map_order_payload
+from app.services.slack_service import notification_channel_label, send_payment_notification
 from app.services.store import event_store
 
 
@@ -32,6 +33,7 @@ def create_integration_event(order: OrderRequest) -> CreateOrderResponse:
         target_system=TARGET_SYSTEM,
         mapped_payload=mapped_payload,
         message="Order created. Ready to open ECPay stage credit checkout.",
+        notification_status="pending",
         created_at=now,
         updated_at=now,
     )
@@ -64,6 +66,7 @@ def prepare_ecpay_checkout(event_id: str) -> ECPayCheckoutResponse:
             "merchant_trade_no": payload["MerchantTradeNo"],
             "last_event_type": "ecpay.checkout.form_created",
             "message": "ECPay stage checkout form is ready.",
+            "notification_status": existing_event.notification_status if existing_event.notification_status != "not_applicable" else "pending",
         }
     )
     event_store.update(event_id, updated_event)
@@ -102,6 +105,7 @@ def mark_browser_return(form_data: dict[str, str]) -> EventRecord | None:
             "rtn_msg": rtn_msg,
             "last_event_type": "ecpay.order_result_url",
             "message": "Browser returned from ECPay. Waiting for server callback confirmation.",
+            "notification_status": event.notification_status if event.notification_status != "not_applicable" else "pending",
         }
     )
     event_store.update(event.event_id, updated_event)
@@ -136,8 +140,13 @@ def handle_ecpay_return(form_data: dict[str, str]) -> ECPayWebhookResponse:
             "rtn_msg": rtn_msg or event.rtn_msg,
             "last_event_type": "ecpay.return_url",
             "message": message,
+            "notification_status": _baseline_notification_status(event, status_value),
+            "notification_channel": notification_channel_label() if status_value == "paid" else event.notification_channel,
+            "notification_last_error": None if status_value == "paid" else event.notification_last_error,
         }
     )
+
+    updated_event = _apply_notification(updated_event)
     event_store.update(event.event_id, updated_event)
 
     return ECPayWebhookResponse(
@@ -182,3 +191,42 @@ def _safe_int(value: str | None) -> int | None:
         return int(value)
     except ValueError:
         return None
+
+
+def _baseline_notification_status(event: EventRecord, status_value: str) -> str:
+    if status_value != "paid":
+        return "not_applicable"
+    if event.notification_status == "sent":
+        return "sent"
+    return "pending"
+
+
+def _apply_notification(event: EventRecord) -> EventRecord:
+    if event.status != "paid":
+        return event
+    if event.notification_status == "sent":
+        return event.model_copy(update={
+            "message": f"{event.message} Slack notification was already sent.",
+            "notification_channel": event.notification_channel or notification_channel_label(),
+        })
+
+    notification_status, error_message = send_payment_notification(event)
+    now = _utc_now_iso() if notification_status == "sent" else event.notification_sent_at
+    channel = notification_channel_label() if notification_status in {"sent", "disabled"} else event.notification_channel
+
+    if notification_status == "sent":
+        message = f"{event.message} Slack notification sent to {channel}."
+    elif notification_status == "disabled":
+        message = f"{event.message} Slack notifications are disabled for this deployment."
+    elif notification_status == "failed":
+        message = f"{event.message} Slack notification failed; check notification_last_error."
+    else:
+        message = event.message
+
+    return event.model_copy(update={
+        "notification_status": notification_status,
+        "notification_channel": channel,
+        "notification_sent_at": now,
+        "notification_last_error": error_message,
+        "message": message,
+    })

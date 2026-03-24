@@ -1,6 +1,6 @@
-# API Integration Workflow Demo with ECPay Stage Checkout
+# API Integration Workflow Demo with ECPay Stage Checkout and Slack Notifications
 
-A minimal FastAPI project that demonstrates a practical payment integration workflow.
+A minimal FastAPI project that demonstrates a practical payment integration and IM notification workflow.
 
 This version is prepared for direct deployment from GitHub to Railway so you can share a live demo link with clients. It upgrades the earlier demo by storing events in SQLite, using UUID-based event IDs, and changing the ECPay result page to a reload-safe POST → Redirect → GET flow.
 
@@ -14,14 +14,12 @@ This version is prepared for direct deployment from GitHub to Railway so you can
 ## What this project demonstrates
 
 - API request handling with FastAPI
-- Input validation with Pydantic
-- Payload mapping between external and internal systems
-- ECPay stage credit checkout form generation
-- CheckMacValue generation and callback verification
-- Browser return handling with reload-safe status polling
-- Payment status tracking by UUID-based event ID
-- SQLite persistence for demo stability on Railway
-- Railway-ready deployment config
+- ECPay stage credit checkout integration
+- `CheckMacValue` verification for server callbacks
+- SQLite-backed persistent event tracking
+- Reload-safe payment status pages using POST -> Redirect -> GET
+- Optional Slack incoming webhook notification after confirmed payment
+- Recent event lookup for repeatable live demos
 
 ## Why this v4 update matters
 
@@ -35,28 +33,28 @@ The previous in-memory demo could lose state after a Railway restart and could c
 
 ## Demo scenario
 
-1. A client creates a demo order.
-2. The backend validates and stores the order with `pending_payment` status.
-3. The backend prepares an ECPay stage credit checkout form.
-4. The client completes payment on ECPay's hosted checkout page.
-5. The browser returns to a reload-safe result page that keeps polling for the latest status.
-6. ECPay sends a server-side callback to the backend.
-7. The backend verifies the callback and updates the event status in SQLite.
-8. The result page and home page recent-event table both show the final state.
+1. A client creates a demo order
+2. The backend stores a persistent local event in SQLite
+3. The backend prepares an ECPay stage checkout form
+4. The client completes payment on ECPay's hosted checkout page in stage mode
+5. The browser returns to a reload-safe result page
+6. ECPay sends a server-side callback to the backend
+7. The backend updates the final payment status
+8. If enabled, the backend sends a Slack notification to the demo owner's channel
+9. The result page shows the latest payment status and notification summary
 
 ## Main endpoints
 
 - `GET /`
 - `GET /health`
 - `POST /api/integrations/orders`
-- `GET /api/integrations/events?limit=8`
 - `GET /api/integrations/events/{event_id}`
+- `GET /api/integrations/events?limit=8`
 - `POST /api/payments/ecpay/checkout`
 - `POST /api/integrations/webhooks/ecpay/return`
-- `GET /payments/ecpay/redirect/{event_id}`
 - `POST /payments/ecpay/result`
 - `GET /payments/ecpay/result?event_id=...`
-- `GET /payments/ecpay/back`
+- `GET /payments/ecpay/redirect/{event_id}`
 
 ## ECPay stage environment
 
@@ -69,6 +67,9 @@ Recommended stage test values:
 - Expiry date: any future date
 - OTP: `1234` if prompted
 - Currency: `TWD` only
+
+## Slack notifications
+Slack notifications are optional and intended for the demo owner. Users do not need their own Slack setup. When enabled, the app sends a message to your Slack channel only after the ECPay server callback confirms payment. The result page also shows whether the notification was sent successfully.
 
 ## Run locally
 

@@ -11,6 +11,14 @@ EventStatus = Literal[
     "payment_failed",
 ]
 
+NotificationStatus = Literal[
+    "pending",
+    "sent",
+    "disabled",
+    "failed",
+    "not_applicable",
+]
+
 
 class OrderRequest(BaseModel):
     source: str = Field(..., min_length=2, max_length=50, examples=["demo_store"])
@@ -54,6 +62,10 @@ class EventRecord(BaseModel):
     rtn_msg: str | None = None
     last_event_type: str | None = None
     message: str | None = None
+    notification_status: NotificationStatus = "pending"
+    notification_channel: str | None = None
+    notification_sent_at: str | None = None
+    notification_last_error: str | None = None
     created_at: str
     updated_at: str
 

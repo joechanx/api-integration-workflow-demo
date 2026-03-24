@@ -92,6 +92,7 @@ def _build_result_page(event_id: str, merchant_trade_no: str) -> str:
         <h1>Payment submitted. Final status is syncing.</h1>
         <p>The browser returned from ECPay, but the live demo confirms success only after the server callback arrives.</p>
         <p id="summary" style="font-weight: 700;">Checking latest event status...</p>
+        <p id="notification-summary" style="color: #374151;">Notification summary will appear here after the server callback is processed.</p>
         <div style="display: grid; gap: 8px; margin: 20px 0;">
           <div>Event ID: <code>{safe_event_id or '(not detected)'}</code></div>
           <div>MerchantTradeNo: <code>{safe_trade_no or '(not detected)'}</code></div>
@@ -109,13 +110,45 @@ def _build_result_page(event_id: str, merchant_trade_no: str) -> str:
           const merchantTradeNo = {safe_trade_no!r};
           const statusEl = document.getElementById('status-box');
           const summaryEl = document.getElementById('summary');
+          const notificationEl = document.getElementById('notification-summary');
           const countdownEl = document.getElementById('countdown');
           let attempts = 0;
           const maxAttempts = 45;
           const initialData = {initial_json};
 
+          function renderNotification(data) {{
+            if (!data) {{
+              notificationEl.textContent = 'Notification summary will appear here after the server callback is processed.';
+              return;
+            }}
+            const status = data.notification_status || 'pending';
+            if (status === 'sent') {{
+              notificationEl.textContent = `Notification sent to ${{data.notification_channel || 'demo Slack channel'}} at ${{new Date(data.notification_sent_at).toLocaleString()}}.`;
+              notificationEl.style.color = '#166534';
+              return;
+            }}
+            if (status === 'disabled') {{
+              notificationEl.textContent = 'Slack notification is disabled for this deployment, so only the on-page result is shown.';
+              notificationEl.style.color = '#374151';
+              return;
+            }}
+            if (status === 'failed') {{
+              notificationEl.textContent = `Slack notification failed: ${{data.notification_last_error || 'unknown error'}}`;
+              notificationEl.style.color = '#991b1b';
+              return;
+            }}
+            if (status === 'not_applicable') {{
+              notificationEl.textContent = 'No Slack notification is sent for unsuccessful payments in this demo.';
+              notificationEl.style.color = '#374151';
+              return;
+            }}
+            notificationEl.textContent = 'Waiting for the server callback before deciding whether to send a Slack notification.';
+            notificationEl.style.color = '#92400e';
+          }}
+
           function renderState(data) {{
             statusEl.textContent = JSON.stringify(data, null, 2);
+            renderNotification(data);
             if (!data) {{
               summaryEl.textContent = 'Waiting for the latest event status.';
               summaryEl.style.color = '#374151';

@@ -1,6 +1,14 @@
 import os
 from pathlib import Path
 
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 APP_NAME = os.getenv("APP_NAME", "API Integration Workflow Demo")
 APP_ENV = os.getenv("APP_ENV", "development")
 TARGET_SYSTEM = os.getenv("TARGET_SYSTEM", "ecpay_stage_credit")
@@ -19,3 +27,10 @@ ECPAY_CHECKOUT_URL = os.getenv(
     "ECPAY_CHECKOUT_URL",
     "https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5",
 )
+
+SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL", "").strip()
+SLACK_NOTIFICATIONS_ENABLED = _env_flag(
+    "SLACK_NOTIFICATIONS_ENABLED",
+    default=bool(SLACK_WEBHOOK_URL),
+)
+SLACK_CHANNEL_LABEL = os.getenv("SLACK_CHANNEL_LABEL", "demo Slack channel")

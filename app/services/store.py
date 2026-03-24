@@ -41,11 +41,30 @@ class EventStore:
                     rtn_msg TEXT,
                     last_event_type TEXT,
                     message TEXT,
+                    notification_status TEXT,
+                    notification_channel TEXT,
+                    notification_sent_at TEXT,
+                    notification_last_error TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+        self._ensure_columns()
+
+    def _ensure_columns(self) -> None:
+        required_columns = {
+            "notification_status": "TEXT",
+            "notification_channel": "TEXT",
+            "notification_sent_at": "TEXT",
+            "notification_last_error": "TEXT",
+        }
+        with self._lock, self._conn:
+            rows = self._conn.execute("PRAGMA table_info(events)").fetchall()
+            existing = {row[1] for row in rows}
+            for column, column_type in required_columns.items():
+                if column not in existing:
+                    self._conn.execute(f"ALTER TABLE events ADD COLUMN {column} {column_type}")
 
     def save(self, event: EventRecord) -> EventRecord:
         row = self._event_to_row(event)
@@ -55,8 +74,10 @@ class EventStore:
                 INSERT OR REPLACE INTO events (
                     event_id, source, status, target_system, mapped_payload_json,
                     payment_page_url, merchant_trade_no, ecpay_trade_no, payment_type,
-                    rtn_code, rtn_msg, last_event_type, message, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    rtn_code, rtn_msg, last_event_type, message, notification_status,
+                    notification_channel, notification_sent_at, notification_last_error,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 tuple(row.values()),
             )
@@ -110,6 +131,10 @@ class EventStore:
             "rtn_msg": event.rtn_msg,
             "last_event_type": event.last_event_type,
             "message": event.message,
+            "notification_status": event.notification_status,
+            "notification_channel": event.notification_channel,
+            "notification_sent_at": event.notification_sent_at,
+            "notification_last_error": event.notification_last_error,
             "created_at": event.created_at,
             "updated_at": event.updated_at,
         }
@@ -130,6 +155,10 @@ class EventStore:
             rtn_msg=row["rtn_msg"],
             last_event_type=row["last_event_type"],
             message=row["message"],
+            notification_status=row["notification_status"] or "pending",
+            notification_channel=row["notification_channel"],
+            notification_sent_at=row["notification_sent_at"],
+            notification_last_error=row["notification_last_error"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
         )

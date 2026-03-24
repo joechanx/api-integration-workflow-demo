@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services import processor
 from app.services.ecpay_checkmac import generate_check_mac_value
 from app.services.store import event_store
 
@@ -18,6 +19,7 @@ def test_home_page() -> None:
     assert "SQLite" in response.text
     assert "Recent events" in response.text
     assert "Create demo order" in response.text
+    assert "Slack notification summary" in response.text
 
 
 def test_health_check() -> None:
@@ -105,9 +107,10 @@ def test_result_page_post_redirects_to_reload_safe_get_url() -> None:
     assert follow.status_code == 200
     assert event_id in follow.text
     assert "keeps the event ID in the URL" in follow.text
+    assert "Notification summary will appear here" in follow.text
 
 
-def test_ecpay_return_updates_event_status() -> None:
+def test_ecpay_return_updates_event_status_and_notification(monkeypatch) -> None:
     create_payload = {
         "source": "demo_store",
         "order_id": "DEMO-1001",
@@ -120,6 +123,8 @@ def test_ecpay_return_updates_event_status() -> None:
     event_id = create_response.json()["event_id"]
     checkout_response = client.post("/api/payments/ecpay/checkout", json={"event_id": event_id})
     merchant_trade_no = checkout_response.json()["merchant_trade_no"]
+
+    monkeypatch.setattr(processor, "send_payment_notification", lambda event: ("sent", None))
 
     form_payload = {
         "MerchantID": "3002607",
@@ -149,6 +154,7 @@ def test_ecpay_return_updates_event_status() -> None:
     assert event_response.status_code == 200
     assert event_response.json()["status"] == "paid"
     assert event_response.json()["ecpay_trade_no"] == "241234567890"
+    assert event_response.json()["notification_status"] == "sent"
 
 
 def test_recent_events_endpoint_returns_latest_records() -> None:

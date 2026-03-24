@@ -1,15 +1,15 @@
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
-from app.core.config import APP_ENV, APP_NAME, APP_DB_PATH, PUBLIC_BASE_URL, TARGET_SYSTEM
+from app.core.config import APP_ENV, APP_NAME, APP_DB_PATH, PUBLIC_BASE_URL, SLACK_CHANNEL_LABEL, SLACK_NOTIFICATIONS_ENABLED, TARGET_SYSTEM
 from app.routers.integrations import router as integrations_router
 from app.routers.payments_ecpay import page_router as payment_pages_router
 from app.routers.payments_ecpay import router as payments_router
 
 app = FastAPI(
     title=APP_NAME,
-    version="0.6.0",
-    description="A minimal FastAPI demo that showcases API request handling, ECPay stage checkout, callback verification, persistent SQLite event tracking, and reload-safe payment status pages.",
+    version="0.7.0",
+    description="A minimal FastAPI demo that showcases API request handling, ECPay stage checkout, callback verification, persistent SQLite event tracking, reload-safe payment status pages, and optional Slack notification delivery after confirmed payment.",
 )
 
 
@@ -44,8 +44,9 @@ def home() -> str:
       </head>
       <body>
         <h1>{APP_NAME}</h1>
-        <p class="muted">Environment: <strong>{APP_ENV}</strong> · Target system: <strong>{TARGET_SYSTEM}</strong> · Storage: <code>{APP_DB_PATH}</code></p>
+        <p class="muted">Environment: <strong>{APP_ENV}</strong> · Target system: <strong>{TARGET_SYSTEM}</strong> · Storage: <code>{APP_DB_PATH}</code> · Slack notifications: <strong>{"enabled" if SLACK_NOTIFICATIONS_ENABLED else "disabled"}</strong></p>
         <p>This live demo shows a practical payment flow: create a demo order, redirect to ECPay stage credit checkout, then let the result page auto-refresh until the server callback confirms the final status. Orders are stored in SQLite so Railway restarts do not reset the demo history.</p>
+        <p>This version can also send a Slack notification after the server callback confirms payment, while still showing the notification summary on the page for users who do not have access to your Slack workspace.</p>
 
         <div class="grid">
           <div class="card">
@@ -57,6 +58,15 @@ def home() -> str:
               <li>Expiry: any future date</li>
               <li>OTP: <code>1234</code> if prompted</li>
               <li>Currency: <code>TWD</code> only</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h2>Slack notification summary</h2>
+            <p>Notifications are delivered only to the demo owner's Slack channel.</p>
+            <ul>
+              <li>Channel label: <code>{SLACK_CHANNEL_LABEL}</code></li>
+              <li>Users do not need their own Slack setup.</li>
+              <li>The result page shows whether the notification was sent.</li>
             </ul>
           </div>
           <div class="card">
@@ -115,6 +125,7 @@ def home() -> str:
             <li>Prepare the ECPay stage credit checkout page.</li>
             <li>Complete the test payment on ECPay-hosted checkout.</li>
             <li>The result page keeps the <code>event_id</code> in its URL, so reload continues checking the same payment.</li>
+            <li>Once the server callback confirms payment, the page also shows whether a Slack notification was sent.</li>
           </ol>
         </div>
 
