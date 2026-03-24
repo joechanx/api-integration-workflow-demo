@@ -11,7 +11,7 @@ This version is prepared for direct deployment from GitHub to Railway so you can
 This project demonstrates a practical payment integration workflow built with FastAPI, ECPay stage checkout, persistent event tracking, and Slack notifications.
 
 - Live Demo: [Demo URL](https://api-integration-workflow-demo-production.up.railway.app/)
-- Video Preview: [Watch the demo in Releases](../../releases/latest)
+- ![Demo Preview]: (docs/demo-preview.gif)
 
 ## What this demo shows
 
