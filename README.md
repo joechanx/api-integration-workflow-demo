@@ -4,6 +4,33 @@ A minimal FastAPI project that demonstrates a practical payment integration and 
 
 This version is prepared for direct deployment from GitHub to Railway so you can share a live demo link with clients. It upgrades the earlier demo by storing events in SQLite, using UUID-based event IDs, and changing the ECPay result page to a reload-safe POST → Redirect → GET flow.
 
+## Demo Preview
+
+[![Demo Preview](docs/portfolio-cover.png)](../../releases/latest)
+
+This project demonstrates a practical payment integration workflow built with FastAPI, ECPay stage checkout, persistent event tracking, and Slack notifications.
+
+- Live Demo: [Demo URL](https://api-integration-workflow-demo-production.up.railway.app/)
+- Video Preview: [Watch the demo in Releases](../../releases/latest)
+
+## What this demo shows
+
+- Payment flow integration with ECPay stage checkout
+- Server-side callback confirmation via webhook
+- Persistent status tracking with SQLite
+- Final paid-state verification
+- Slack notification after confirmed payment
+
+## Demo flow
+
+1. Create a demo order  
+2. Generate a payment event  
+3. Redirect to ECPay hosted checkout  
+4. Complete the test payment + OTP flow  
+5. Receive server-side callback  
+6. Update final payment status  
+7. Send Slack notification after confirmation
+
 ## Live Demo
 
 - **Demo URL:** [Home](https://api-integration-workflow-demo-production.up.railway.app/)
