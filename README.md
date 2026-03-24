@@ -7,6 +7,7 @@ This version is prepared for direct deployment from GitHub to Railway so you can
 ## Live Demo
 
 - **Demo URL:** [Home](https://api-integration-workflow-demo-production.up.railway.app/)
+- [Demo Video](docs/demo.mp4)
 
 
 ![Portfolio cover](docs/portfolio-cover.png)
@@ -70,32 +71,6 @@ Recommended stage test values:
 
 ## Slack notifications
 Slack notifications are optional and intended for the demo owner. Users do not need their own Slack setup. When enabled, the app sends a message to your Slack channel only after the ECPay server callback confirms payment. The result page also shows whether the notification was sent successfully.
-
-## Run locally
-
-### macOS / Linux
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-### Windows PowerShell
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-## Run tests
-
-```bash
-pytest
-```
 
 ## What this project showcases
 
