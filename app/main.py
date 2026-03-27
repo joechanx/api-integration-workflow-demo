@@ -759,7 +759,7 @@ function generateOrderId() {{
               return;
             }}
             box.style.display = "block";
-            box.className = `status-notice ${tone}`;
+            box.className = `status-notice ${{tone}}`;
             box.textContent = message;
           }}
 
