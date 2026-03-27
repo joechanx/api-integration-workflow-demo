@@ -598,7 +598,7 @@ def home() -> str:
 
                 <button class="details-toggle" onclick="toggleRaw()">Raw event JSON</button>
                 <div id="raw-wrap" style="display:none;">
-                  <pre id="result">{}</pre>
+                  <pre id="result">{{}}</pre>
                 </div>
               </div>
             </div>
@@ -897,14 +897,14 @@ def home() -> str:
             document.getElementById("slack_card").textContent = ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "Pending" : "Disabled");
             document.getElementById("status-pill").className = "status-pill status-default";
             document.getElementById("status-pill").textContent = "waiting";
-            document.getElementById("result").textContent = "{}";
+            document.getElementById("result").textContent = "{{}}";
             document.getElementById("open-btn").className = "button button-secondary";
             localStorage.removeItem("latest_event_id");
             loadRecentEvents();
           }}
 
           applyFormDefaults();
-          document.getElementById("result").textContent = "{}";
+          document.getElementById("result").textContent = "{{}}";
           const latestEventId = localStorage.getItem("latest_event_id");
           if (latestEventId) setLatestEventId(latestEventId);
           updateStatusCards(null);
