@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
@@ -23,206 +24,890 @@ def home() -> str:
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>{APP_NAME}</title>
         <style>
-          body {{ font-family: Arial, sans-serif; max-width: 1080px; margin: 40px auto; padding: 0 16px; line-height: 1.6; color: #1f2937; }}
-          code, pre, input, textarea {{ font-family: Consolas, monospace; }}
-          pre {{ background: #f5f5f5; padding: 12px; border-radius: 12px; overflow-x: auto; }}
-          .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }}
-          .card {{ border: 1px solid #e5e7eb; border-radius: 16px; padding: 18px; background: #fff; box-shadow: 0 4px 18px rgba(0,0,0,0.04); }}
-          .muted {{ color: #6b7280; }}
-          .row {{ display: grid; gap: 8px; margin-bottom: 12px; }}
-          input {{ padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; }}
-          button {{ cursor: pointer; border: none; border-radius: 12px; padding: 12px 16px; font-weight: 600; }}
-          .primary {{ background: #111827; color: #fff; }}
-          .secondary {{ background: #f3f4f6; color: #111827; }}
-          .result {{ white-space: pre-wrap; word-break: break-word; background: #f9fafb; padding: 12px; border-radius: 12px; min-height: 60px; }}
-          a {{ color: #2563eb; text-decoration: none; }}
-          ul {{ padding-left: 20px; }}
-          table {{ width: 100%; border-collapse: collapse; font-size: 14px; }}
-          th, td {{ border-bottom: 1px solid #e5e7eb; text-align: left; padding: 8px 6px; vertical-align: top; }}
-          .small {{ font-size: 13px; }}
+          :root {{
+            --bg: #f1f5f9;
+            --panel: #ffffff;
+            --panel-soft: #f8fafc;
+            --text: #0f172a;
+            --muted: #64748b;
+            --line: #e2e8f0;
+            --primary: #111827;
+            --accent: #4f46e5;
+            --accent-soft: #eef2ff;
+            --success: #059669;
+            --success-soft: #ecfdf5;
+            --warning: #d97706;
+            --warning-soft: #fffbeb;
+            --danger: #dc2626;
+            --danger-soft: #fef2f2;
+            --shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+            --radius-xl: 28px;
+            --radius-lg: 20px;
+            --radius-md: 14px;
+          }}
+
+          * {{ box-sizing: border-box; }}
+          body {{
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Inter, Arial, sans-serif;
+            line-height: 1.6;
+          }}
+
+          code, pre, input, textarea, button {{
+            font-family: Inter, Consolas, monospace;
+          }}
+
+          a {{
+            color: #2563eb;
+            text-decoration: none;
+          }}
+
+          .wrap {{
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 28px 18px 42px;
+          }}
+
+          .hero {{
+            display: grid;
+            grid-template-columns: 1.35fr 0.9fr;
+            gap: 20px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+            padding: 28px;
+          }}
+
+          .badge {{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 13px;
+            font-weight: 700;
+            padding: 8px 12px;
+          }}
+
+          h1 {{
+            margin: 14px 0 10px;
+            font-size: clamp(32px, 4vw, 48px);
+            line-height: 1.08;
+            letter-spacing: -0.03em;
+          }}
+
+          h2 {{
+            margin: 0 0 6px;
+            font-size: 26px;
+            line-height: 1.18;
+          }}
+
+          h3 {{
+            margin: 0 0 6px;
+            font-size: 18px;
+          }}
+
+          p {{ margin: 0; }}
+          .muted {{ color: var(--muted); }}
+
+          .chip-row {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+          }}
+
+          .chip {{
+            border-radius: 999px;
+            background: var(--panel-soft);
+            border: 1px solid var(--line);
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
+          }}
+
+          .summary-panel {{
+            background: #0f172a;
+            color: white;
+            border-radius: 24px;
+            padding: 22px;
+          }}
+
+          .summary-grid {{
+            display: grid;
+            gap: 10px;
+            margin-top: 14px;
+          }}
+
+          .summary-item {{
+            background: rgba(255,255,255,0.06);
+            border-radius: 16px;
+            padding: 12px 14px;
+          }}
+
+          .summary-label {{
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #94a3b8;
+          }}
+
+          .summary-value {{
+            margin-top: 4px;
+            font-size: 14px;
+            line-height: 1.45;
+            font-weight: 700;
+            word-break: break-word;
+          }}
+
+          .error-box {{
+            margin-top: 18px;
+            border-radius: 18px;
+            border: 1px solid #fecaca;
+            background: #fff1f2;
+            padding: 14px 16px;
+            color: #b91c1c;
+            font-size: 14px;
+            font-weight: 700;
+            display: none;
+          }}
+
+          .main-grid {{
+            display: grid;
+            gap: 20px;
+            margin-top: 22px;
+            grid-template-columns: 1.18fr 0.82fr;
+          }}
+
+          .stack {{
+            display: grid;
+            gap: 20px;
+          }}
+
+          .card {{
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+            padding: 24px;
+          }}
+
+          .section-head {{
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 14px;
+            margin-bottom: 18px;
+          }}
+
+          .button {{
+            cursor: pointer;
+            border: none;
+            border-radius: 16px;
+            padding: 13px 16px;
+            font-size: 14px;
+            font-weight: 800;
+            transition: 0.16s ease;
+          }}
+
+          .button:hover {{ transform: translateY(-1px); }}
+          .button:disabled {{ opacity: 0.55; cursor: not-allowed; transform: none; }}
+
+          .button-primary {{
+            background: var(--primary);
+            color: white;
+          }}
+
+          .button-secondary {{
+            background: white;
+            color: var(--text);
+            border: 1px solid var(--line);
+          }}
+
+          .button-accent {{
+            background: var(--accent);
+            color: white;
+          }}
+
+          .form-grid {{
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            padding: 18px;
+            background: var(--panel-soft);
+            border-radius: 24px;
+            margin-bottom: 18px;
+          }}
+
+          .field {{
+            display: grid;
+            gap: 8px;
+          }}
+
+          .field.wide {{
+            grid-column: 1 / -1;
+          }}
+
+          .field span {{
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+          }}
+
+          input {{
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 14px;
+            padding: 12px 14px;
+            font-size: 15px;
+            background: white;
+            color: var(--text);
+          }}
+
+          input:focus {{
+            outline: 2px solid rgba(79, 70, 229, 0.18);
+            border-color: #818cf8;
+          }}
+
+          .action-grid {{
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }}
+
+          .action-card {{
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 18px;
+            background: white;
+          }}
+
+          .action-badge {{
+            width: 40px;
+            height: 40px;
+            border-radius: 999px;
+            background: #f1f5f9;
+            color: #334155;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 12px;
+          }}
+
+          .status-pill {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            padding: 9px 12px;
+            font-size: 13px;
+            font-weight: 800;
+            white-space: nowrap;
+          }}
+
+          .status-paid {{
+            background: var(--success-soft);
+            color: var(--success);
+            border-color: #bbf7d0;
+          }}
+
+          .status-processing {{
+            background: var(--warning-soft);
+            color: var(--warning);
+            border-color: #fde68a;
+          }}
+
+          .status-pending {{
+            background: var(--accent-soft);
+            color: var(--accent);
+            border-color: #c7d2fe;
+          }}
+
+          .status-failed {{
+            background: var(--danger-soft);
+            color: var(--danger);
+            border-color: #fecaca;
+          }}
+
+          .status-default {{
+            background: #f8fafc;
+            color: #475569;
+            border-color: var(--line);
+          }}
+
+          .status-grid {{
+            display: grid;
+            gap: 14px;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: 16px;
+          }}
+
+          .status-card {{
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 16px;
+            background: white;
+          }}
+
+          .status-label {{
+            font-size: 13px;
+            color: var(--muted);
+            font-weight: 700;
+          }}
+
+          .status-value {{
+            margin-top: 8px;
+            font-size: 18px;
+            font-weight: 800;
+            word-break: break-word;
+          }}
+
+          .details-toggle {{
+            margin-top: 16px;
+            width: 100%;
+            text-align: left;
+            border: 1px solid var(--line);
+            background: var(--panel-soft);
+            border-radius: 18px;
+            padding: 14px 16px;
+            font-weight: 800;
+            cursor: pointer;
+          }}
+
+          pre {{
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 18px;
+            border-radius: 0 0 18px 18px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.55;
+          }}
+
+          .recent-list {{
+            display: grid;
+            gap: 10px;
+            margin-top: 16px;
+          }}
+
+          .recent-button {{
+            width: 100%;
+            text-align: left;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 14px 16px;
+            background: white;
+            font-size: 14px;
+            font-weight: 700;
+            color: #334155;
+            cursor: pointer;
+          }}
+
+          .recent-button.active {{
+            background: var(--accent-soft);
+            color: var(--accent);
+            border-color: #c7d2fe;
+          }}
+
+          .helper-list {{
+            margin: 0;
+            padding-left: 18px;
+          }}
+
+          .info-grid {{
+            display: grid;
+            gap: 12px;
+          }}
+
+          @media (max-width: 1080px) {{
+            .hero,
+            .main-grid {{
+              grid-template-columns: 1fr;
+            }}
+          }}
+
+          @media (max-width: 760px) {{
+            .wrap {{
+              padding: 18px 12px 32px;
+            }}
+
+            .hero,
+            .card {{
+              padding: 18px;
+            }}
+
+            .form-grid,
+            .action-grid,
+            .status-grid {{
+              grid-template-columns: 1fr;
+            }}
+
+            .section-head {{
+              flex-direction: column;
+              align-items: stretch;
+            }}
+          }}
         </style>
       </head>
       <body>
-        <h1>{APP_NAME}</h1>
-        <p class="muted">Environment: <strong>{APP_ENV}</strong> · Target system: <strong>{TARGET_SYSTEM}</strong> · Storage: <code>{APP_DB_PATH}</code> · Slack notifications: <strong>{"enabled" if SLACK_NOTIFICATIONS_ENABLED else "disabled"}</strong></p>
-        <p>This live demo shows a practical payment flow: create a demo order, redirect to ECPay stage credit checkout, then let the result page auto-refresh until the server callback confirms the final status. Orders are stored in SQLite so Railway restarts do not reset the demo history.</p>
-        <p>This version can also send a Slack notification after the server callback confirms payment, while still showing the notification summary on the page for users who do not have access to your Slack workspace.</p>
+        <div class="wrap">
+          <section class="hero">
+            <div>
+              <div class="badge">Conservative homepage refresh</div>
+              <h1>Keep the current demo, but make the next action clearer</h1>
+              <p class="muted">
+                This version keeps the existing single-page demo structure, but improves readability with a compact live summary, clearer action grouping, and a cleaner separation between user flow and raw technical details.
+              </p>
+              <div class="chip-row">
+                <div class="chip">Environment: {APP_ENV}</div>
+                <div class="chip">Target system: {TARGET_SYSTEM}</div>
+                <div class="chip">Storage: <code>{APP_DB_PATH}</code></div>
+              </div>
+              <div class="chip-row">
+                <div class="chip">ECPay stage</div>
+                <div class="chip">FastAPI backend</div>
+                <div class="chip">SQLite event tracking</div>
+                <div class="chip">Slack notification</div>
+              </div>
+            </div>
 
-        <div class="grid">
-          <div class="card">
-            <h2>ECPay stage only</h2>
-            <p>No real payment is processed.</p>
-            <ul>
-              <li>Card: <code>4311-9522-2222-2222</code></li>
-              <li>CVV: <code>222</code></li>
-              <li>Expiry: any future date</li>
-              <li>OTP: <code>1234</code> if prompted</li>
-              <li>Currency: <code>TWD</code> only</li>
-            </ul>
-          </div>
-          <div class="card">
-            <h2>Slack notification summary</h2>
-            <p>Notifications are delivered only to the demo owner's Slack channel.</p>
-            <ul>
-              <li>Channel label: <code>{SLACK_CHANNEL_LABEL}</code></li>
-              <li>Users do not need their own Slack setup.</li>
-              <li>The result page shows whether the notification was sent.</li>
-            </ul>
-          </div>
-          <div class="card">
-            <h2>Useful links</h2>
-            <ul>
-              <li><a href="/docs">Swagger UI</a></li>
-              <li><a href="/health">Health check</a></li>
-              <li><a href="{PUBLIC_BASE_URL}/openapi.json">OpenAPI JSON</a></li>
-            </ul>
-          </div>
-        </div>
+            <aside class="summary-panel">
+              <div style="font-size:14px;font-weight:700;color:#cbd5e1;">Live summary</div>
+              <div class="summary-grid">
+                <div class="summary-item">
+                  <div class="summary-label">Event ID</div>
+                  <div class="summary-value" id="summary_event_id">Not created yet</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-label">MerchantTradeNo</div>
+                  <div class="summary-value" id="summary_trade_no">—</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-label">Status</div>
+                  <div class="summary-value" id="summary_status">waiting</div>
+                </div>
+                <div class="summary-item">
+                  <div class="summary-label">Slack</div>
+                  <div class="summary-value" id="summary_slack">{"enabled" if SLACK_NOTIFICATIONS_ENABLED else "disabled"}</div>
+                </div>
+              </div>
+            </aside>
+          </section>
 
-        <div class="card">
-          <h2>Create demo order</h2>
-          <div class="row"><label>Order ID<input id="order_id" /></label></div>
-          <div class="row"><label>Name<input id="customer_name" value="Alex Chen" /></label></div>
-          <div class="row"><label>Email<input id="customer_email" value="alex@example.com" /></label></div>
-          <div class="row"><label>Amount (TWD)<input id="amount" type="number" value="499" /></label></div>
-          <div class="row"><label>Currency<input id="currency" value="TWD" /></label></div>
-          <button class="primary" onclick="createOrder()">Create order</button>
-          <p class="muted">A new order is only created when you click the button. Reloading this page does not create another payment event.</p>
-        </div>
+          <div id="error-box" class="error-box"></div>
 
-        <div class="grid">
-          <div class="card">
-            <h2>Open ECPay stage checkout</h2>
-            <div class="row"><label>Event ID<input id="event_id" placeholder="evt_xxx" /></label></div>
-            <button class="primary" onclick="startCheckout()">Prepare checkout</button>
-            <p class="muted">This calls <code>POST /api/payments/ecpay/checkout</code>.</p>
-          </div>
-          <div class="card">
-            <h2>Check status</h2>
-            <div class="row"><label>Event ID<input id="status_event_id" placeholder="evt_xxx" /></label></div>
-            <button class="secondary" onclick="checkStatus()">Get event status</button>
-            <p class="muted">This calls <code>GET /api/integrations/events/{{event_id}}</code>.</p>
-          </div>
-        </div>
+          <section class="main-grid">
+            <div class="stack">
+              <div class="card">
+                <div class="section-head">
+                  <div>
+                    <h2>Main demo actions</h2>
+                    <p class="muted">Same flow as the current homepage, but grouped into one visible action row instead of feeling scattered.</p>
+                  </div>
+                  <button class="button button-accent" onclick="resetDemo()">Reset form</button>
+                </div>
 
-        <div class="card">
-          <h2>Result</h2>
-          <div id="result" class="result">Ready.</div>
-        </div>
+                <div class="form-grid">
+                  <label class="field">
+                    <span>Order ID</span>
+                    <input id="order_id" />
+                  </label>
+                  <label class="field">
+                    <span>Name</span>
+                    <input id="customer_name" value="Alex Chen" />
+                  </label>
+                  <label class="field wide">
+                    <span>Email</span>
+                    <input id="customer_email" value="alex@example.com" />
+                  </label>
+                  <label class="field">
+                    <span>Amount (TWD)</span>
+                    <input id="amount" type="number" value="499" />
+                  </label>
+                  <label class="field">
+                    <span>Currency</span>
+                    <input id="currency" value="TWD" />
+                  </label>
+                </div>
 
-        <div class="card">
-          <h2>Recent events</h2>
-          <p class="muted small">These are stored in SQLite so callback updates can still be found after page reloads or service restarts.</p>
-          <button class="secondary" onclick="loadRecentEvents()">Refresh recent events</button>
-          <div id="recent-events" class="result" style="margin-top:12px;">Loading…</div>
-        </div>
+                <div class="action-grid">
+                  <div class="action-card">
+                    <div class="action-badge">1</div>
+                    <h3>Create order</h3>
+                    <p class="muted">Generate a new demo payment event.</p>
+                    <button id="create-btn" class="button button-primary" style="margin-top:14px;" onclick="createOrder()">Create order</button>
+                  </div>
 
-        <div class="card">
-          <h2>Demo flow</h2>
-          <ol>
-            <li>Create a demo order.</li>
-            <li>Copy the returned <code>event_id</code>.</li>
-            <li>Prepare the ECPay stage credit checkout page.</li>
-            <li>Complete the test payment on ECPay-hosted checkout.</li>
-            <li>The result page keeps the <code>event_id</code> in its URL, so reload continues checking the same payment.</li>
-            <li>Once the server callback confirms payment, the page also shows whether a Slack notification was sent.</li>
-          </ol>
+                  <div class="action-card">
+                    <div class="action-badge">2</div>
+                    <h3>Prepare checkout</h3>
+                    <p class="muted">Build the ECPay stage checkout payload.</p>
+                    <button id="prepare-btn" class="button button-primary" style="margin-top:14px;" onclick="startCheckout()">Prepare checkout</button>
+                  </div>
+
+                  <div class="action-card">
+                    <div class="action-badge">3</div>
+                    <h3>Open payment page</h3>
+                    <p class="muted">Continue to ECPay and complete the test payment.</p>
+                    <button id="open-btn" class="button button-secondary" style="margin-top:14px;" onclick="openPaymentPage()">Open payment</button>
+                  </div>
+
+                  <div class="action-card">
+                    <div class="action-badge">4</div>
+                    <h3>Check final status</h3>
+                    <p class="muted">Refresh and verify paid state after callback.</p>
+                    <button id="status-btn" class="button button-secondary" style="margin-top:14px;" onclick="checkStatus()">Refresh status</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="section-head">
+                  <div>
+                    <h2>Status area</h2>
+                    <p class="muted">Keep the existing JSON capability, but let a simpler status strip come first.</p>
+                  </div>
+                  <div id="status-pill" class="status-pill status-default">waiting</div>
+                </div>
+
+                <div class="status-grid">
+                  <div class="status-card">
+                    <div class="status-label">Current state</div>
+                    <div class="status-value" id="state_card">Ready</div>
+                  </div>
+                  <div class="status-card">
+                    <div class="status-label">Browser return</div>
+                    <div class="status-value" id="browser_card">Not received</div>
+                  </div>
+                  <div class="status-card">
+                    <div class="status-label">Slack notification</div>
+                    <div class="status-value" id="slack_card">Pending</div>
+                  </div>
+                </div>
+
+                <button class="details-toggle" onclick="toggleRaw()">Raw event JSON</button>
+                <div id="raw-wrap" style="display:none;">
+                  <pre id="result">{}</pre>
+                </div>
+              </div>
+            </div>
+
+            <div class="stack">
+              <div class="card">
+                <h2>Event controls</h2>
+                <p class="muted">Keep manual event selection available without making it the first thing users see.</p>
+
+                <div class="form-grid" style="grid-template-columns:1fr; margin-top:18px;">
+                  <label class="field">
+                    <span>Event ID</span>
+                    <input id="event_id" placeholder="evt_xxx" />
+                  </label>
+                  <label class="field">
+                    <span>Status lookup event ID</span>
+                    <input id="status_event_id" placeholder="evt_xxx" />
+                  </label>
+                </div>
+
+                <div class="info-grid">
+                  <a class="button button-secondary" href="/docs" style="display:block; text-align:center;">Open Swagger UI</a>
+                  <a class="button button-secondary" href="/health" style="display:block; text-align:center;">Health check</a>
+                </div>
+              </div>
+
+              <div class="card">
+                <h2>Recent events</h2>
+                <p class="muted">Reloading the page does not create a new order. You can continue from the latest event here.</p>
+                <div id="recent-events" class="recent-list">
+                  <div class="muted">Loading…</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <h2>Stage and notification notes</h2>
+                <div class="info-grid">
+                  <div><strong>ECPay stage only</strong> · no real payment is processed.</div>
+                  <ul class="helper-list">
+                    <li>Card: <code>4311-9522-2222-2222</code></li>
+                    <li>CVV: <code>222</code></li>
+                    <li>Expiry: any future date</li>
+                    <li>OTP: <code>1234</code> if prompted</li>
+                  </ul>
+                  <div>Slack channel label: <code>{SLACK_CHANNEL_LABEL}</code></div>
+                  <div>Slack notifications: <strong>{"enabled" if SLACK_NOTIFICATIONS_ENABLED else "disabled"}</strong></div>
+                  <div><a href="{PUBLIC_BASE_URL}/openapi.json">OpenAPI JSON</a></div>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
 
         <script>
+          let latestPreparedPaymentUrl = "";
+          let rawOpen = false;
+
           function generateOrderId() {{
             const now = new Date();
-            const pad = (n) => String(n).padStart(2, '0');
+            const pad = (n) => String(n).padStart(2, "0");
             return `DEMO-${{now.getFullYear()}}${{pad(now.getMonth()+1)}}${{pad(now.getDate())}}-${{pad(now.getHours())}}${{pad(now.getMinutes())}}${{pad(now.getSeconds())}}`;
+          }}
+
+          function setBusy(buttonId, isBusy, busyText, normalText) {{
+            const button = document.getElementById(buttonId);
+            if (!button) return;
+            button.disabled = isBusy;
+            button.textContent = isBusy ? busyText : normalText;
+          }}
+
+          function showError(message) {{
+            const box = document.getElementById("error-box");
+            if (!message) {{
+              box.style.display = "none";
+              box.textContent = "";
+              return;
+            }}
+            box.style.display = "block";
+            box.textContent = message;
           }}
 
           function setLatestEventId(eventId) {{
             if (!eventId) return;
-            localStorage.setItem('latest_event_id', eventId);
-            document.getElementById('event_id').value = eventId;
-            document.getElementById('status_event_id').value = eventId;
+            localStorage.setItem("latest_event_id", eventId);
+            document.getElementById("event_id").value = eventId;
+            document.getElementById("status_event_id").value = eventId;
+            document.getElementById("summary_event_id").textContent = eventId;
+          }}
+
+          function applyFormDefaults() {{
+            document.getElementById("order_id").value = generateOrderId();
+            document.getElementById("customer_name").value = "Alex Chen";
+            document.getElementById("customer_email").value = "alex@example.com";
+            document.getElementById("amount").value = "499";
+            document.getElementById("currency").value = "TWD";
+          }}
+
+          function statusClass(status) {{
+            switch (status) {{
+              case "paid": return "status-pill status-paid";
+              case "payment_processing": return "status-pill status-processing";
+              case "pending_payment":
+              case "redirect_ready": return "status-pill status-pending";
+              case "payment_failed": return "status-pill status-failed";
+              default: return "status-pill status-default";
+            }}
+          }}
+
+          function updateSummary(data) {{
+            document.getElementById("summary_trade_no").textContent = data?.merchant_trade_no || "—";
+            document.getElementById("summary_status").textContent = data?.status || "waiting";
+            document.getElementById("summary_slack").textContent = data?.notification_status || ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "pending" : "disabled");
+          }}
+
+          function updateStatusCards(data) {{
+            const status = data?.status || "waiting";
+            document.getElementById("status-pill").className = statusClass(status);
+            document.getElementById("status-pill").textContent = status;
+
+            let stateText = "Ready";
+            if (status === "payment_processing") stateText = "Waiting for callback";
+            else if (status === "paid") stateText = "Confirmed paid";
+            else if (status === "redirect_ready") stateText = "Checkout prepared";
+            else if (status === "pending_payment") stateText = "Order created";
+            else if (status === "payment_failed") stateText = "Payment failed";
+
+            const browserReturned = data?.last_event_type === "ecpay.order_result_url" || data?.last_event_type === "ecpay.return_url";
+            const slackState =
+              data?.notification_status === "sent"
+                ? "Sent"
+                : data?.notification_status === "failed"
+                  ? "Failed"
+                  : ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "Pending" : "Disabled");
+
+            document.getElementById("state_card").textContent = stateText;
+            document.getElementById("browser_card").textContent = browserReturned ? "Received" : "Not received";
+            document.getElementById("slack_card").textContent = slackState;
+          }}
+
+          function renderResult(data) {{
+            document.getElementById("result").textContent = JSON.stringify(data || {{}}, null, 2);
+            updateSummary(data);
+            updateStatusCards(data);
           }}
 
           function renderRecentEvents(events) {{
-            const container = document.getElementById('recent-events');
+            const container = document.getElementById("recent-events");
             if (!events.length) {{
-              container.textContent = 'No events yet.';
+              container.innerHTML = '<div class="muted">No events yet.</div>';
               return;
             }}
-            const rows = events.map((event) => `
-              <tr>
-                <td><code>${{event.event_id}}</code></td>
-                <td>${{event.status}}</td>
-                <td><code>${{event.merchant_trade_no || ''}}</code></td>
-                <td>${{event.mapped_payload.external_order_id}}</td>
-                <td>${{new Date(event.updated_at).toLocaleString()}}</td>
-                <td><button class="secondary" onclick="reuseEvent('${{event.event_id}}')">Use</button></td>
-              </tr>
-            `).join('');
-            container.innerHTML = `<table><thead><tr><th>Event ID</th><th>Status</th><th>MerchantTradeNo</th><th>Order ID</th><th>Updated</th><th></th></tr></thead><tbody>${{rows}}</tbody></table>`;
+            container.innerHTML = events.map((event) => `
+              <button class="recent-button ${{document.getElementById("event_id").value === event.event_id ? "active" : ""}}" onclick="reuseEvent('${{event.event_id}}')">
+                <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;">
+                  <span style="overflow:hidden;text-overflow:ellipsis;">${{event.event_id}}</span>
+                  <span class="muted" style="font-size:12px;">${{event.status}}</span>
+                </div>
+              </button>
+            `).join("");
           }}
 
           async function loadRecentEvents() {{
-            const response = await fetch('/api/integrations/events?limit=8');
-            const data = await response.json();
-            renderRecentEvents(data.events || []);
-            if (data.events && data.events.length && !document.getElementById('event_id').value) {{
-              setLatestEventId(data.events[0].event_id);
+            try {{
+              const response = await fetch("/api/integrations/events?limit=8");
+              const data = await response.json();
+              renderRecentEvents(data.events || []);
+              if (data.events && data.events.length && !document.getElementById("event_id").value) {{
+                setLatestEventId(data.events[0].event_id);
+              }}
+            }} catch (error) {{
+              console.error(error);
             }}
           }}
 
           function reuseEvent(eventId) {{
             setLatestEventId(eventId);
+            checkStatus();
           }}
 
           async function callJsonApi(url, options) {{
             const response = await fetch(url, options);
             const data = await response.json();
-            document.getElementById('result').textContent = JSON.stringify(data, null, 2);
+            renderResult(data);
+            if (!response.ok) {{
+              throw new Error(data.detail || `Request failed (${{response.status}})`);
+            }}
             return data;
           }}
 
           async function createOrder() {{
-            const payload = {{
-              source: 'demo_store',
-              order_id: document.getElementById('order_id').value || generateOrderId(),
-              customer_name: document.getElementById('customer_name').value,
-              customer_email: document.getElementById('customer_email').value,
-              amount: Number(document.getElementById('amount').value),
-              currency: document.getElementById('currency').value
-            }};
-            const data = await callJsonApi('/api/integrations/orders', {{
-              method: 'POST',
-              headers: {{ 'Content-Type': 'application/json' }},
-              body: JSON.stringify(payload)
-            }});
-            if (data.event_id) {{
-              setLatestEventId(data.event_id);
-              document.getElementById('order_id').value = generateOrderId();
-              loadRecentEvents();
+            showError(null);
+            setBusy("create-btn", true, "Creating...", "Create order");
+            try {{
+              const payload = {{
+                source: "demo_store",
+                order_id: document.getElementById("order_id").value || generateOrderId(),
+                customer_name: document.getElementById("customer_name").value,
+                customer_email: document.getElementById("customer_email").value,
+                amount: Number(document.getElementById("amount").value),
+                currency: document.getElementById("currency").value,
+              }};
+              const data = await callJsonApi("/api/integrations/orders", {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify(payload),
+              }});
+              if (data.event_id) {{
+                setLatestEventId(data.event_id);
+                applyFormDefaults();
+                latestPreparedPaymentUrl = "";
+                await loadRecentEvents();
+              }}
+            }} catch (error) {{
+              showError(error.message || "Create order failed.");
+            }} finally {{
+              setBusy("create-btn", false, "Creating...", "Create order");
             }}
           }}
 
           async function startCheckout() {{
-            const eventId = document.getElementById('event_id').value;
-            const data = await callJsonApi('/api/payments/ecpay/checkout', {{
-              method: 'POST',
-              headers: {{ 'Content-Type': 'application/json' }},
-              body: JSON.stringify({{ event_id: eventId }})
-            }});
-            if (data.payment_page_url) {{
-              window.location.href = data.payment_page_url;
+            showError(null);
+            const eventId = document.getElementById("event_id").value;
+            if (!eventId) {{
+              showError("Enter or select an event ID first.");
+              return;
+            }}
+            setBusy("prepare-btn", true, "Preparing...", "Prepare checkout");
+            try {{
+              const data = await callJsonApi("/api/payments/ecpay/checkout", {{
+                method: "POST",
+                headers: {{ "Content-Type": "application/json" }},
+                body: JSON.stringify({{ event_id: eventId }}),
+              }});
+              if (data.event_id) {{
+                setLatestEventId(data.event_id);
+              }}
+              latestPreparedPaymentUrl = data.payment_page_url || "";
+              if (latestPreparedPaymentUrl) {{
+                document.getElementById("open-btn").className = "button button-primary";
+              }}
+              await loadRecentEvents();
+            }} catch (error) {{
+              showError(error.message || "Prepare checkout failed.");
+            }} finally {{
+              setBusy("prepare-btn", false, "Preparing...", "Prepare checkout");
             }}
           }}
 
-          async function checkStatus() {{
-            const eventId = document.getElementById('status_event_id').value;
-            await callJsonApi(`/api/integrations/events/${{eventId}}`, {{ method: 'GET' }});
+          function openPaymentPage() {{
+            showError(null);
+            if (!latestPreparedPaymentUrl) {{
+              showError("Prepare checkout first.");
+              return;
+            }}
+            window.location.href = latestPreparedPaymentUrl;
           }}
 
-          document.getElementById('order_id').value = generateOrderId();
-          const latestEventId = localStorage.getItem('latest_event_id');
+          async function checkStatus() {{
+            showError(null);
+            const eventId = document.getElementById("status_event_id").value || document.getElementById("event_id").value;
+            if (!eventId) {{
+              showError("Enter or select an event ID first.");
+              return;
+            }}
+            setBusy("status-btn", true, "Refreshing...", "Refresh status");
+            try {{
+              const data = await callJsonApi(`/api/integrations/events/${{eventId}}`, {{ method: "GET" }});
+              if (data.event_id) {{
+                setLatestEventId(data.event_id);
+              }}
+              await loadRecentEvents();
+            }} catch (error) {{
+              showError(error.message || "Get event status failed.");
+            }} finally {{
+              setBusy("status-btn", false, "Refreshing...", "Refresh status");
+            }}
+          }}
+
+          function toggleRaw() {{
+            rawOpen = !rawOpen;
+            document.getElementById("raw-wrap").style.display = rawOpen ? "block" : "none";
+          }}
+
+          function resetDemo() {{
+            applyFormDefaults();
+            showError(null);
+            latestPreparedPaymentUrl = "";
+            document.getElementById("event_id").value = "";
+            document.getElementById("status_event_id").value = "";
+            document.getElementById("summary_event_id").textContent = "Not created yet";
+            document.getElementById("summary_trade_no").textContent = "—";
+            document.getElementById("summary_status").textContent = "waiting";
+            document.getElementById("summary_slack").textContent = ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "pending" : "disabled");
+            document.getElementById("state_card").textContent = "Ready";
+            document.getElementById("browser_card").textContent = "Not received";
+            document.getElementById("slack_card").textContent = ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "Pending" : "Disabled");
+            document.getElementById("status-pill").className = "status-pill status-default";
+            document.getElementById("status-pill").textContent = "waiting";
+            document.getElementById("result").textContent = "{}";
+            document.getElementById("open-btn").className = "button button-secondary";
+            localStorage.removeItem("latest_event_id");
+            loadRecentEvents();
+          }}
+
+          applyFormDefaults();
+          document.getElementById("result").textContent = "{}";
+          const latestEventId = localStorage.getItem("latest_event_id");
           if (latestEventId) setLatestEventId(latestEventId);
+          updateStatusCards(null);
           loadRecentEvents();
         </script>
       </body>
