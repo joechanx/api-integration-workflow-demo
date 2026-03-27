@@ -176,6 +176,33 @@ def home() -> str:
             font-weight: 700;
             display: none;
           }}
+          .status-notice {{
+            margin-top: 14px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            padding: 14px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            display: none;
+          }}
+
+          .status-notice.success {{
+            background: var(--success-soft);
+            color: var(--success);
+            border-color: #bbf7d0;
+          }}
+
+          .status-notice.warning {{
+            background: var(--warning-soft);
+            color: var(--warning);
+            border-color: #fde68a;
+          }}
+
+          .status-notice.error {{
+            background: var(--danger-soft);
+            color: var(--danger);
+            border-color: #fecaca;
+          }}
 
           .main-grid {{
             display: grid;
@@ -464,10 +491,10 @@ def home() -> str:
         <div class="wrap">
           <section class="hero">
             <div>
-              <div class="badge">Conservative homepage refresh</div>
-              <h1>Keep the current demo, but make the next action clearer</h1>
+              <div class="badge">Live payment integration demo</div>
+              <h1>FastAPI payment workflow demo with ECPay callbacks</h1>
               <p class="muted">
-                This version keeps the existing single-page demo structure, but improves readability with a compact live summary, clearer action grouping, and a cleaner separation between user flow and raw technical details.
+                Create a demo order, prepare the ECPay stage checkout, open the hosted payment page in a new window, and watch the final paid state update after server callback confirmation.
               </p>
               <div class="chip-row">
                 <div class="chip">Environment: {APP_ENV}</div>
@@ -506,14 +533,15 @@ def home() -> str:
           </section>
 
           <div id="error-box" class="error-box"></div>
+          <div id="status-notice" class="status-notice" style="display:none;"></div>
 
           <section class="main-grid">
             <div class="stack">
               <div class="card">
                 <div class="section-head">
                   <div>
-                    <h2>Main demo actions</h2>
-                    <p class="muted">Same flow as the current homepage, but grouped into one visible action row instead of feeling scattered.</p>
+                    <h2>Demo flow</h2>
+                    <p class="muted">Follow the four-step payment flow below. The checkout opens in a new window so this page can continue tracking the final result.</p>
                   </div>
                   <button class="button button-accent" onclick="resetDemo()">Reset form</button>
                 </div>
@@ -566,7 +594,7 @@ def home() -> str:
                   <div class="action-card">
                     <div class="action-badge">4</div>
                     <h3>Check final status</h3>
-                    <p class="muted">Refresh and verify paid state after callback.</p>
+                    <p class="muted">Automatically check the final paid state after the hosted payment flow returns.</p>
                     <button id="status-btn" class="button button-secondary" style="margin-top:14px;" onclick="checkStatus()">Refresh status</button>
                   </div>
                 </div>
@@ -576,7 +604,7 @@ def home() -> str:
                 <div class="section-head">
                   <div>
                     <h2>Status area</h2>
-                    <p class="muted">Keep the existing JSON capability, but let a simpler status strip come first.</p>
+                    <p class="muted">This page shows a simple status overview first. Raw event JSON is still available below for technical review.</p>
                   </div>
                   <div id="status-pill" class="status-pill status-default">waiting</div>
                 </div>
@@ -588,7 +616,7 @@ def home() -> str:
                   </div>
                   <div class="status-card">
                     <div class="status-label">Browser return</div>
-                    <div class="status-value" id="browser_card">Not received</div>
+                    <div class="status-value" id="browser_card">Pending</div>
                   </div>
                   <div class="status-card">
                     <div class="status-label">Slack notification</div>
@@ -626,15 +654,15 @@ def home() -> str:
               </div>
 
               <div class="card">
-                <h2>Recent events</h2>
-                <p class="muted">Reloading the page does not create a new order. You can continue from the latest event here.</p>
+                <h2>Recent payment events</h2>
+                <p class="muted">Reloading this page does not create a new order. You can reopen or recheck a recent payment event here.</p>
                 <div id="recent-events" class="recent-list">
                   <div class="muted">Loading…</div>
                 </div>
               </div>
 
               <div class="card">
-                <h2>Stage and notification notes</h2>
+                <h2>Demo notes</h2>
                 <div class="info-grid">
                   <div><strong>ECPay stage only</strong> · no real payment is processed.</div>
                   <ul class="helper-list">
@@ -643,7 +671,7 @@ def home() -> str:
                     <li>Expiry: any future date</li>
                     <li>OTP: <code>1234</code> if prompted</li>
                   </ul>
-                  <div>Slack channel label: <code>{SLACK_CHANNEL_LABEL}</code></div>
+                  <div>Notification channel: <code>{SLACK_CHANNEL_LABEL}</code></div>
                   <div>Slack notifications: <strong>{"enabled" if SLACK_NOTIFICATIONS_ENABLED else "disabled"}</strong></div>
                   <div><a href="{PUBLIC_BASE_URL}/openapi.json">OpenAPI JSON</a></div>
                 </div>
@@ -655,8 +683,50 @@ def home() -> str:
         <script>
           let latestPreparedPaymentUrl = "";
           let rawOpen = false;
+          let pollingTimer = null;
+          const POLL_INTERVAL_MS = 3000;
+          const MAX_POLL_ATTEMPTS = 30;
+          let pollAttempts = 0;
 
-          function generateOrderId() {{
+          
+          function stopPolling() {{
+            if (pollingTimer) {{
+              clearInterval(pollingTimer);
+              pollingTimer = null;
+            }}
+            pollAttempts = 0;
+          }}
+
+          function shouldKeepPolling(data) {{
+            if (!data) return false;
+            return data.status === "payment_processing" || data.status === "redirect_ready";
+          }}
+
+          function startPollingStatus(eventId) {{
+            stopPolling();
+            if (!eventId) return;
+            pollAttempts = 0;
+            pollingTimer = setInterval(async () => {{
+              pollAttempts += 1;
+              try {{
+                const data = await callJsonApi(`/api/integrations/events/${{eventId}}`, {{ method: "GET" }}, false);
+                if (data.event_id) {{
+                  setLatestEventId(data.event_id);
+                }}
+                await loadRecentEvents();
+                if (!shouldKeepPolling(data) || pollAttempts >= MAX_POLL_ATTEMPTS) {{
+                  stopPolling();
+                }}
+              }} catch (error) {{
+                console.error(error);
+                if (pollAttempts >= MAX_POLL_ATTEMPTS) {{
+                  stopPolling();
+                }}
+              }}
+            }}, POLL_INTERVAL_MS);
+          }}
+
+function generateOrderId() {{
             const now = new Date();
             const pad = (n) => String(n).padStart(2, "0");
             return `DEMO-${{now.getFullYear()}}${{pad(now.getMonth()+1)}}${{pad(now.getDate())}}-${{pad(now.getHours())}}${{pad(now.getMinutes())}}${{pad(now.getSeconds())}}`;
@@ -678,6 +748,39 @@ def home() -> str:
             }}
             box.style.display = "block";
             box.textContent = message;
+          }}
+
+          function showStatusNotice(message, tone = "warning") {{
+            const box = document.getElementById("status-notice");
+            if (!message) {{
+              box.style.display = "none";
+              box.className = "status-notice";
+              box.textContent = "";
+              return;
+            }}
+            box.style.display = "block";
+            box.className = `status-notice ${tone}`;
+            box.textContent = message;
+          }}
+
+          function updateStatusNotice(data) {{
+            if (!data) {{
+              showStatusNotice(null);
+              return;
+            }}
+            if (data.status === "paid") {{
+              showStatusNotice("Payment confirmed. Final paid state has been verified and polling has stopped.", "success");
+              return;
+            }}
+            if (data.status === "payment_failed") {{
+              showStatusNotice("Payment failed. Final status has been received and polling has stopped.", "error");
+              return;
+            }}
+            if (data.status === "payment_processing" || data.status === "redirect_ready") {{
+              showStatusNotice("Payment submitted. Waiting for the ECPay server callback to confirm the final result.", "warning");
+              return;
+            }}
+            showStatusNotice(null);
           }}
 
           function setLatestEventId(eventId) {{
@@ -719,7 +822,7 @@ def home() -> str:
             document.getElementById("status-pill").textContent = status;
 
             let stateText = "Ready";
-            if (status === "payment_processing") stateText = "Waiting for callback";
+            if (status === "payment_processing") stateText = "Waiting for server callback";
             else if (status === "paid") stateText = "Confirmed paid";
             else if (status === "redirect_ready") stateText = "Checkout prepared";
             else if (status === "pending_payment") stateText = "Order created";
@@ -731,10 +834,10 @@ def home() -> str:
                 ? "Sent"
                 : data?.notification_status === "failed"
                   ? "Failed"
-                  : ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "Pending" : "Disabled");
+                  : ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "Waiting" : "Disabled");
 
             document.getElementById("state_card").textContent = stateText;
-            document.getElementById("browser_card").textContent = browserReturned ? "Received" : "Not received";
+            document.getElementById("browser_card").textContent = browserReturned ? "Received" : "Pending";
             document.getElementById("slack_card").textContent = slackState;
           }}
 
@@ -778,11 +881,14 @@ def home() -> str:
             checkStatus();
           }}
 
-          async function callJsonApi(url, options) {{
+          async function callJsonApi(url, options, showUiError = true) {{
             const response = await fetch(url, options);
             const data = await response.json();
             renderResult(data);
             if (!response.ok) {{
+              if (showUiError) {{
+                showError(data.detail || `Request failed (${{response.status}})`);
+              }}
               throw new Error(data.detail || `Request failed (${{response.status}})`);
             }}
             return data;
@@ -792,6 +898,7 @@ def home() -> str:
             showError(null);
             setBusy("create-btn", true, "Creating...", "Create order");
             try {{
+              stopPolling();
               const payload = {{
                 source: "demo_store",
                 order_id: document.getElementById("order_id").value || generateOrderId(),
@@ -853,11 +960,28 @@ def home() -> str:
               showError("Prepare checkout first.");
               return;
             }}
-            window.location.href = latestPreparedPaymentUrl;
+            const eventId = document.getElementById("event_id").value || document.getElementById("status_event_id").value;
+            const popup = window.open(latestPreparedPaymentUrl, "_blank", "noopener,noreferrer");
+            if (!popup) {{
+              showError("The payment page was blocked by the browser popup setting. Please allow popups and try again.");
+              return;
+            }}
+            popup.focus();
+            if (eventId) {{
+              startPollingStatus(eventId);
+            }}
+          }}
+            const popup = window.open(latestPreparedPaymentUrl, "_blank", "noopener,noreferrer");
+            if (!popup) {{
+              showError("The payment page was blocked by the browser popup setting. Please allow popups and try again.");
+              return;
+            }}
+            popup.focus();
           }}
 
           async function checkStatus() {{
             showError(null);
+            stopPolling();
             const eventId = document.getElementById("status_event_id").value || document.getElementById("event_id").value;
             if (!eventId) {{
               showError("Enter or select an event ID first.");
@@ -883,8 +1007,10 @@ def home() -> str:
           }}
 
           function resetDemo() {{
+            stopPolling();
             applyFormDefaults();
             showError(null);
+            showStatusNotice(null);
             latestPreparedPaymentUrl = "";
             document.getElementById("event_id").value = "";
             document.getElementById("status_event_id").value = "";
@@ -893,8 +1019,8 @@ def home() -> str:
             document.getElementById("summary_status").textContent = "waiting";
             document.getElementById("summary_slack").textContent = ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "pending" : "disabled");
             document.getElementById("state_card").textContent = "Ready";
-            document.getElementById("browser_card").textContent = "Not received";
-            document.getElementById("slack_card").textContent = ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "Pending" : "Disabled");
+            document.getElementById("browser_card").textContent = "Pending";
+            document.getElementById("slack_card").textContent = ({str(SLACK_NOTIFICATIONS_ENABLED).lower()} ? "Waiting" : "Disabled");
             document.getElementById("status-pill").className = "status-pill status-default";
             document.getElementById("status-pill").textContent = "waiting";
             document.getElementById("result").textContent = "{{}}";
@@ -908,6 +1034,7 @@ def home() -> str:
           const latestEventId = localStorage.getItem("latest_event_id");
           if (latestEventId) setLatestEventId(latestEventId);
           updateStatusCards(null);
+          showStatusNotice(null);
           loadRecentEvents();
         </script>
       </body>
