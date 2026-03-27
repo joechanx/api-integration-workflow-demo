@@ -588,14 +588,14 @@ def home() -> str:
                     <div class="action-badge">3</div>
                     <h3>Open payment page</h3>
                     <p class="muted">Continue to ECPay and complete the test payment.</p>
-                    <button id="open-btn" class="button button-secondary" style="margin-top:14px;" onclick="openPaymentPage()">Open payment</button>
+                    <button id="open-btn" class="button button-primary" style="margin-top:14px;" onclick="openPaymentPage()">Open payment</button>
                   </div>
 
                   <div class="action-card">
                     <div class="action-badge">4</div>
                     <h3>Check final status</h3>
                     <p class="muted">Automatically check the final paid state after the hosted payment flow returns.</p>
-                    <button id="status-btn" class="button button-secondary" style="margin-top:14px;" onclick="checkStatus()">Refresh status</button>
+                    <button id="status-btn" class="button button-primary" style="margin-top:14px;" onclick="checkStatus()">Refresh status</button>
                   </div>
                 </div>
               </div>
