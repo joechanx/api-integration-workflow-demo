@@ -971,13 +971,6 @@ function generateOrderId() {{
               startPollingStatus(eventId);
             }}
           }}
-            const popup = window.open(latestPreparedPaymentUrl, "_blank", "noopener,noreferrer");
-            if (!popup) {{
-              showError("The payment page was blocked by the browser popup setting. Please allow popups and try again.");
-              return;
-            }}
-            popup.focus();
-          }}
 
           async function checkStatus() {{
             showError(null);
